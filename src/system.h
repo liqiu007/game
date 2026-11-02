@@ -1,3 +1,4 @@
+// 积分与死亡界面的公共接口，具体实现位于 system.cpp。
 #pragma once
 #include <cstddef>
 #include <vector>
@@ -6,24 +7,30 @@ namespace game {
 struct Player;
 struct Level;
 class World;
+// 将按钮点击转换为动作，实际重生或重开交给游戏主循环执行。
 enum class DeathAction { None, Respawn, Restart };
 
 class ScoreSystem {
 public:
+    // 查询实时总分、已计分障碍数和死亡时冻结的分数。
     int total() const { return score; }
     int cleared() const { return static_cast<int>(awarded.size()); }
     int deathScore() const { return finalScore; }
+    // 比较一步前后的玩家位置，只对新越过或落上的障碍计分。
     void update(const Player& before, const Player& after, const Level& level);
+    // 死亡保存分数快照，重新开始才清除分数与防重复记录。
     void settleDeath();
     void reset();
 private:
+    // awarded 存储已发分的障碍编号，重生时保留以防重复刷分。
     int score = 0;
     int finalScore = 0;
     std::vector<std::size_t> awarded;
+    // 统一检查分值及障碍编号，再累计一次奖励。
     void award(std::size_t id, int points);
 };
 
-// Both the death screen and its clickable button hitboxes live in system.cpp.
+// 结算绘制与按钮命中区域共用 system.cpp 中的布局，避免显示和点击错位。
 void drawDeathScreen(const World& world);
 DeathAction deathScreenClick(int x, int y);
 }

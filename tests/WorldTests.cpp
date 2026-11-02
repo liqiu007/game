@@ -1,3 +1,4 @@
+// 无窗口回归测试：验证物理、完整通关、计分、死亡、镜头及尖刺组同步。
 #include "World.h"
 #include <cmath>
 #include <iostream>
@@ -5,13 +6,17 @@
 
 namespace game {
 namespace {
+// 断言失败时抛出带定位信息的异常，由测试入口统一输出并返回非零退出码。
 void check(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
+// 以固定输入推进指定数量的物理步，避免测试依赖真实时间和键盘。
 void step(World& w, int count, Input input = {}) { for (int i = 0; i < count; ++i) w.update(input, FixedStep); }
 void baitFirstTrap(World& w) {
+    // 从出生点走到安全触发距离，再等待第一组尖刺完成整个伸缩周期。
     step(w, 34, {false, true, false});
     step(w, 180);
 }
 void jumpTo(World& w, float target) {
+    // 朝目标平台前进，起跳后补一次二段跳；安全落地后结束本段路线。
     for (int i = 0; i < 180; ++i) {
         w.update({false, w.player.body.x < target, i == 0 || i == 36}, FixedStep);
         if (i > 36 && w.player.grounded) break;
@@ -20,6 +25,7 @@ void jumpTo(World& w, float target) {
 }
 int runSelfTests() {
     try {
+        // 测试一：落地位置、第一次跳跃、二段跳、拒绝第三跳和落地补充次数。
         World w;
         step(w, 20);
         check(w.player.grounded && std::abs(w.player.body.y - 522) < 0.01f, "Ground landing failed");
@@ -33,6 +39,7 @@ int runSelfTests() {
         check(w.player.vy > before, "Third jump must be rejected");
         step(w, 150);
         check(w.player.grounded && w.player.jumpsLeft == 2, "Landing must replenish jumps");
+        // 测试二：触碰尖刺后冻结物理与计时，重复死亡请求不重复增加次数。
         w.player.body.x = 185;
         w.update({}, FixedStep);
         check(w.dead && w.deaths == 1 && w.player.body.x == 185, "Spike must show death screen before respawn");
@@ -40,6 +47,7 @@ int runSelfTests() {
         step(w, 30, {false, true, true});
         w.die(L"Repeated death");
         check(w.deaths == 1 && w.elapsed == deathTime && w.player.body.x == 185, "Death state must freeze simulation");
+        // 测试三：手动重生不重复记死亡；激活存档后掉落应回到存档点。
         w.respawn();
         check(!w.dead && w.deaths == 1 && w.player.body.x == w.level.spawnX, "Respawn must not count death twice");
         w.player.body = {555, 402, 24, 28};
@@ -50,6 +58,7 @@ int runSelfTests() {
         check(w.dead && w.deaths == 2, "Falling must settle death");
         w.respawn();
         check(!w.dead && w.player.body.x == 555, "Checkpoint respawn failed");
+        // 测试四：触碰新终点后冻结世界，重新开始清除本局状态。
         w.player.body = {w.level.goal.x, w.level.goal.bottom() - 28, 24, 28};
         w.update({}, FixedStep);
         check(w.won, "Goal detection failed");
@@ -58,6 +67,7 @@ int runSelfTests() {
         check(w.elapsed == elapsed && w.player.body.x == w.level.goal.x, "Win must freeze simulation");
         w.restart();
         check(!w.won && !w.checkpointActive && w.deaths == 0 && w.elapsed == 0, "Restart failed");
+        // 测试五：使用独立平台检查水平撞墙和上升撞到平台底部的处理。
         w.level.platforms = {{100, 100, 100, 20}};
         w.level.spikes.clear();
         w.player.body = {73, 100, 24, 28};
@@ -67,6 +77,7 @@ int runSelfTests() {
         w.player.vy = -400;
         w.update({}, FixedStep);
         check(w.player.body.y >= 120 && w.player.vy == 0, "Ceiling collision failed");
+        // 测试六：通过真实输入走完整个扩展地图，逐段引诱机关、跳跃并检查总分。
         World route;
         baitFirstTrap(route);
         jumpTo(route, 365);
@@ -74,7 +85,7 @@ int runSelfTests() {
         check(route.scoring.total() == 350 && route.scoring.cleared() == 3, "First two spikes and first landing should score 350");
         jumpTo(route, 555);
         check(route.checkpointActive, "Tutorial route cannot reach checkpoint");
-        step(route, 180); // Bait the checkpoint trap and wait for it to retract.
+        step(route, 180); // 等待存档点旁的整组尖刺缩回。
         jumpTo(route, 780);
         check(!route.won, "Old endpoint must no longer finish the expanded map");
         jumpTo(route, 970);
@@ -89,6 +100,7 @@ int runSelfTests() {
         step(route, 50, {false, true, false});
         check(route.won && route.deaths == 0, "Tutorial must be completable without dying");
         check(route.scoring.total() == 3100 && route.scoring.cleared() == 17, "Expanded route must score all eight spikes and nine platforms");
+        // 测试七：镜头停在地图边界，重生与重开后立即返回正确视野，窄地图不滚动。
         check(route.cameraX() == route.level.width - ScreenWidth, "Camera must stop at the map's right edge");
         route.respawn();
         check(route.cameraX() < 200, "Checkpoint respawn must reset camera position");
@@ -96,6 +108,7 @@ int runSelfTests() {
         check(route.cameraX() == 0, "Restart must reset camera to map start");
         route.level.width = 500;
         check(route.cameraX() == 0, "A narrow level must not produce a negative camera offset");
+        // 测试八：死亡分数快照不变，重生重复经过同一障碍不能刷分。
         World scored;
         baitFirstTrap(scored);
         jumpTo(scored, 365);
@@ -107,12 +120,14 @@ int runSelfTests() {
         baitFirstTrap(scored);
         jumpTo(scored, 365);
         check(scored.scoring.total() == 350 && scored.scoring.cleared() == 3, "Respawn and repeated obstacles must not farm points");
+        // 测试九：重开后清空分数与已奖励集合，同样的障碍可以重新获得奖励。
         scored.restart();
         check(scored.scoring.total() == 0 && scored.scoring.cleared() == 0 && scored.scoring.deathScore() == 0 && !scored.dead,
             "Restart must clear score, settlement and awarded obstacles");
         baitFirstTrap(scored);
         jumpTo(scored, 365);
         check(scored.scoring.total() == 350, "New game should allow earning points again");
+        // 测试十：尖刺允许自定义分值，从底部经过不能被当作成功跨越。
         World custom;
         custom.level.spikeScores[0] = 75;
         Player beforePlayer, afterPlayer;
@@ -123,8 +138,10 @@ int runSelfTests() {
         beforePlayer.body.y = afterPlayer.body.y = 480;
         custom.scoring.update(beforePlayer, afterPlayer, custom.level);
         check(custom.scoring.total() == 75, "Obstacle-specific point values should be honored");
+        // 测试十一：结算按钮内的坐标返回正确动作，按钮外的点击不执行动作。
         check(deathScreenClick(400, 360) == DeathAction::Respawn && deathScreenClick(400, 440) == DeathAction::Restart &&
             deathScreenClick(10, 10) == DeathAction::None, "Death screen button hitboxes failed");
+        // 测试十二：远处和平台下方不触发，靠近后整组伸长、底座不动、远处组不受影响。
         World trapTest;
         step(trapTest, 20);
         check(trapTest.spikeActivity.traps[0].phase == SpikePhase::Idle, "Distant players must not trigger traps");
@@ -137,6 +154,7 @@ int runSelfTests() {
         check(std::abs(extended.h - 148) < 0.01f && extended.bottom() == 550, "Trap must extend upward with fixed base");
         check(trapTest.spikeActivity.bounds(0, trapTest.level.spikes[0]).h == extended.h, "Adjacent spikes must extend together");
         check(trapTest.spikeActivity.bounds(2, trapTest.level.spikes[2]).h == 24, "Distant groups must not activate together");
+        // 测试十三：经过保持阶段后整组同步缩回，完成后本条命不再重复触发。
         step(trapTest, 100);
         check(trapTest.spikeActivity.traps[0].phase == SpikePhase::Retracting, "Trap should retract after hold");
         check(trapTest.spikeActivity.bounds(0, trapTest.level.spikes[0]).h ==
@@ -148,7 +166,7 @@ int runSelfTests() {
         check(trapTest.spikeActivity.traps[0].phase == SpikePhase::Spent, "Trap must not retrigger continuously");
         trapTest.respawn();
         check(trapTest.spikeActivity.traps[0].phase == SpikePhase::Idle, "Respawn should rearm traps");
-        // A player above the original spike is caught by its growing portion.
+        // 测试十四：原本位于短尖刺上方的角色会被伸长部分击中；死亡后机关冻结且不加分。
         trapTest.player.body = {210, 440, 24, 28};
         trapTest.player.grounded = false;
         step(trapTest, 12);
@@ -157,6 +175,7 @@ int runSelfTests() {
         const float frozenExtension = trapTest.spikeActivity.traps[0].extension;
         step(trapTest, 60);
         check(trapTest.spikeActivity.traps[0].extension == frozenExtension, "Trap animation must freeze on death");
+        // 测试十五：重开恢复机关状态，存档点重生位置在附近机关伸长时仍安全。
         trapTest.restart();
         check(!trapTest.dead && trapTest.spikeActivity.traps[0].extension == 0 &&
             trapTest.spikeActivity.traps[0].phase == SpikePhase::Idle, "Restart must reset trap state");
@@ -165,11 +184,13 @@ int runSelfTests() {
         step(trapTest, 20);
         check(!trapTest.dead && trapTest.spikeActivity.traps[1].phase == SpikePhase::Holding,
             "Checkpoint spawn must remain safe while nearby trap activates");
+        // 测试十六：乱序存储的相邻尖刺链也应合并，不同楼层或远处分开成组。
         const std::vector<Rect> unorderedSpikes{{148, 526, 24, 24}, {100, 526, 24, 24}, {124, 526, 24, 24},
             {124, 406, 24, 24}, {300, 526, 24, 24}};
         auto groups = SpikeActivity::tutorial(unorderedSpikes);
         check(groups.traps.size() == 3 && groups.traps[0].indices.size() == 3,
             "Grouping must join an unsorted adjacent chain, but separate floors and distant spikes");
+        // 测试十七：从整组右侧靠近也能触发，逐步检查整个周期内所有成员高度一致。
         groups.update({190, 522, 24, 28}, unorderedSpikes, FixedStep);
         check(groups.traps[0].phase == SpikePhase::Extending && groups.traps[1].phase == SpikePhase::Idle,
             "Approaching the rightmost group member must trigger the entire group only");
@@ -179,6 +200,7 @@ int runSelfTests() {
                 groups.bounds(1, unorderedSpikes[1]).h == groups.bounds(2, unorderedSpikes[2]).h,
                 "Group members must remain synchronized throughout the whole cycle");
         }
+        // 所有检查通过返回成功；任意断言异常都在下方转换为失败提示和退出码。
         std::cout << "PASS: physics, expanded full route, 3100 score, camera, settlement, grouped traps, collision, reset\n";
         return 0;
     } catch (const std::exception& e) {
