@@ -4,6 +4,6 @@
 namespace game {
 inline Input mapControls(const bool* current, const bool* previous) {
     // 水平方向与快速下落使用持续状态；松开 W 再按才能触发二段跳。
-    return {current['A'], current['D'], current['W'] && !previous['W'], current['J'], current['S']};
+    return {current['A'], current['D'], current['W'] && !previous['W'], current['J'], current['S'], current['W']};
 }
 }

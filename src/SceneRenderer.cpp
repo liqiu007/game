@@ -1,6 +1,7 @@
 // 六种主题背景与战斗画面：五个闯关主题加无尽星空，不依赖外部素材文件。
 #include "SceneRenderer.h"
 #include "Combat.h"
+#include "AdventureMechanics.h"
 #pragma warning(push)
 #pragma warning(disable: 4201)
 #include <graphics.h>
@@ -29,6 +30,15 @@ void drawBackground(const World& w) {
         line(0, y, ScreenWidth, y);
     }
     const int drift = static_cast<int>(w.cameraX() * 0.22f) % 240;
+    // 远处云层和近处微粒沿不同速度移动，参考上游程序化层次背景的做法。
+    if (theme < 3) {
+        for (int i = 0; i < 5; ++i) {
+            const int x = static_cast<int>(std::fmod(i * 251.0f + w.elapsed * (3 + i), 1250.0f)) - 160 - drift / 3;
+            const int y = 160 + i * 34;
+            setfillcolor(theme == 1 ? RGB(111, 72, 91) : RGB(52, 89, 105));
+            solidellipse(x, y, x + 160, y + 24); solidellipse(x + 30, y - 12, x + 105, y + 22);
+        }
+    }
     // 第二步：每个主题使用独有的轮廓、配色与装饰，镜头移动时产生轻微视差。
     if (theme == 0) {
         setfillcolor(RGB(245, 221, 139)); solidcircle(780, 185, 36);
@@ -74,6 +84,88 @@ void drawBackground(const World& w) {
         for (int x = -240; x < 1200; x += 120)
             fill(x - drift, 450 + (x / 120 % 3) * 25, x - drift + 70, 640, RGB(24, 36, 67));
     }
+    // 主题粒子只装饰远景：林中萤火、实验室能量点、要塞余烬与山谷光尘。
+    for (int i = 0; i < 28; ++i) {
+        const int x = (i * 137 + 73 - drift + 960) % 960;
+        const int y = 190 + (i * 79) % 380 + static_cast<int>(std::sin(w.elapsed + i) * 6);
+        setfillcolor(theme == 4 ? RGB(226, 111, 65) : (theme == 2 ? RGB(150, 193, 115) : RGB(118, 151, 171)));
+        solidcircle(x, y, i % 4 == 0 ? 2 : 1);
+    }
+}
+void drawTerrain(const World& w) {
+    // 第一步：每种主题提供独立顶面和底材，不改变真实地形外框。
+    const COLORREF base[]{RGB(71, 78, 65), RGB(114, 76, 64), RGB(44, 74, 65), RGB(46, 49, 79), RGB(72, 43, 49), RGB(46, 56, 89)};
+    const COLORREF top[]{RGB(130, 185, 109), RGB(224, 167, 110), RGB(106, 191, 143), RGB(107, 211, 230), RGB(231, 137, 82), RGB(148, 159, 239)};
+    for (std::size_t i = 0; i < w.level.platforms.size(); ++i) {
+        if (!w.platformSolid(i)) continue;
+        const auto& p = w.level.platforms[i];
+        const int x = static_cast<int>(p.x - w.cameraX()), y = static_cast<int>(p.y);
+        const int right = static_cast<int>(p.right() - w.cameraX()), bottom = static_cast<int>(p.bottom());
+        if (right < 0 || x > ScreenWidth) continue;
+        bool fragile = false, touched = false;
+        for (const auto& f : w.level.fragile) if (f.index == i) { fragile = true; touched = f.touched; }
+        fill(x, y, right - 1, bottom - 1, fragile ? RGB(135, 94, 69) : base[w.level.theme]);
+        fill(x, y, right - 1, y + 4, touched ? RGB(255, 116, 75) : top[w.level.theme]);
+        // 第二步：石块接缝、桥面裂纹与草沿区分可站立表面和危险机关。
+        setlinecolor(RGB(38, 42, 49));
+        for (int tx = x + 20; tx < right; tx += 30) {
+            if (fragile) { line(tx, y + 5, tx - 7, y + 12); line(tx - 7, y + 12, tx - 2, bottom - 1); }
+            else { line(tx, y + 7, tx, bottom - 1); line(tx + 2, y + 13, std::min(tx + 15, right - 1), y + 13); }
+        }
+        if (w.level.theme == 0 || w.level.theme == 2) {
+            setlinecolor(top[w.level.theme]);
+            for (int tx = x + 8; tx < right - 4; tx += 17) { line(tx, y, tx - 2, y - 4); line(tx, y, tx + 3, y - 3); }
+        }
+    }
+}
+void drawAdventureScene(const World& w) {
+    // 第一步：高路用蓝色单向台面，与普通实体平台区分；移动轨迹在背后以虚线绘制。
+    const auto rect = [&](const Rect& r, COLORREF c) { fill(static_cast<int>(r.x - w.cameraX()), static_cast<int>(r.y),
+        static_cast<int>(r.right() - w.cameraX()), static_cast<int>(r.bottom()), c); };
+    for (const auto& p : w.level.skyPlatforms) {
+        const int x = static_cast<int>(p.body.x - w.cameraX()), y = static_cast<int>(p.body.y);
+        if (p.travelX != 0 || p.travelY != 0) {
+            setlinestyle(PS_DOT, 1); setlinecolor(RGB(103, 143, 160));
+            line(static_cast<int>(p.homeX + p.body.w / 2 - w.cameraX()), static_cast<int>(p.homeY + 8),
+                static_cast<int>(p.homeX + p.travelX + p.body.w / 2 - w.cameraX()), static_cast<int>(p.homeY + p.travelY + 8));
+            setlinestyle(PS_SOLID, 1);
+        }
+        if (skyActive(p, w.elapsed)) {
+            rect(p.body, RGB(49, 87, 105)); rect({p.body.x, p.body.y, p.body.w, 4}, p.timed ? RGB(204, 159, 245) : RGB(120, 225, 224));
+            for (int tx = x + 8; tx < x + p.body.w - 4; tx += 12) fill(tx, y + 8, tx + 4, y + 10, RGB(100, 143, 162));
+        } else {
+            setlinecolor(RGB(151, 124, 190)); setlinestyle(PS_DOT, 1);
+            rectangle(x, y, static_cast<int>(x + p.body.w), static_cast<int>(y + p.body.h)); setlinestyle(PS_SOLID, 1);
+        }
+        // 定时台面上方的进度条让玩家看得见即将消失的时机。
+        if (p.timed) {
+            const float phase = std::fmod(w.elapsed, p.period) / p.period;
+            rect({p.body.x, p.body.y - 7, p.body.w * (1 - phase), 2}, RGB(214, 172, 255));
+        }
+    }
+    // 第二步：弹簧橙色顶盖，落刺预警显示感叹号和下落方向线。
+    for (const auto& s : w.level.springs) {
+        rect(s.body, s.flash > 0 ? RGB(255, 244, 173) : RGB(255, 170, 69));
+        rect({s.body.x + 4, s.body.y - 5, s.body.w - 8, 4}, RGB(250, 217, 123));
+    }
+    for (const auto& f : w.level.fallingSpikes) {
+        const int x = static_cast<int>(f.body.x - w.cameraX()), y = static_cast<int>(f.body.y);
+        POINT points[]{{x, y}, {x + 24, y}, {x + 12, y + 32}};
+        setfillcolor(f.phase == FallingPhase::Warning ? RGB(255, 209, 98) : RGB(234, 112, 148)); solidpolygon(points, 3);
+        if (f.phase == FallingPhase::Warning) {
+            text(x + 5, y - 24, L"!", RGB(255, 228, 120));
+            setlinestyle(PS_DOT, 1); setlinecolor(RGB(241, 186, 97)); line(x + 12, y + 35, x + 12, 300); setlinestyle(PS_SOLID, 1);
+        }
+    }
+    // 第三步：星羽悬浮发光，碰撞区域固定，收集后不再绘制。
+    for (const auto& f : w.level.feathers) if (!f.collected) {
+        const int x = static_cast<int>(f.body.x + 9 - w.cameraX()), y = static_cast<int>(f.body.y + 13 + std::sin(w.elapsed * 3) * 3);
+        setfillcolor(RGB(130, 108, 61)); solidcircle(x, y, 18);
+        setfillcolor(RGB(255, 222, 104)); solidellipse(x - 6, y - 12, x + 7, y + 10);
+        setlinecolor(RGB(255, 250, 213)); line(x - 3, y + 14, x + 3, y - 9);
+        for (int k = -6; k <= 6; k += 4) line(x, y + k, x + 7, y + k - 5);
+    }
+    if (!w.level.skyPlatforms.empty()) text(static_cast<int>(45 - w.cameraX()), 338, L"↑ 星羽高路", RGB(213, 234, 203));
 }
 void drawCombatScene(const World& w) {
     // 第一步：将敌人、锯轮与子弹的世界坐标转换到屏幕，使用与碰撞相同的外框。
@@ -107,7 +199,8 @@ void drawCombatScene(const World& w) {
         }
     }
     // 第三步：BOSS 显示身体与独立血条，生命归零后开放终点。
-    if (w.level.boss && w.bossHealth > 0) {
+    // 进入竞技场后才显示血条，避免遮住前半段高路的落刺预警。
+    if (w.level.boss && w.bossHealth > 0 && w.player.body.x > 1730) {
         box({2115, 288, 56, 72}, RGB(180, 50, 70));
         box({2123, 304, 12, 10}, RGB(255, 215, 100)); box({2150, 304, 12, 10}, RGB(255, 215, 100));
         fill(330, 120, 630, 134, RGB(68, 27, 36));

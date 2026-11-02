@@ -4,6 +4,7 @@
 #include "SceneRenderer.h"
 #include "Controls.h"
 #include "DisplayLayout.h"
+#include "CharacterRenderer.h"
 #pragma warning(push)
 #pragma warning(disable: 4201) // EasyX 消息结构使用匿名联合，仅在此头文件内忽略警告。
 #include <graphics.h>
@@ -77,6 +78,7 @@ int Game::run(Preview preview) {
     setbkmode(TRANSPARENT);
     BeginBatchDraw();
     if (smokeTest) {
+        world.load(0);
         menu.page = preview == Preview::Home ? Page::Home :
             (preview == Preview::Levels ? Page::Levels : (preview == Preview::Modes ? Page::Modes :
             ((preview == Preview::Settings || preview == Preview::Window) ? Page::Settings : Page::Playing)));
@@ -106,6 +108,11 @@ int Game::run(Preview preview) {
         else if (preview != Preview::Endless) world.player.body = {970, 397, 24, 28};
     }
     // 第三步：记录前一帧按键，统一处理菜单与游戏的单次按下事件，防止跨页面误触发。
+    if (preview == Preview::Adventure) {
+        // 定位到第五关高路，真实更新触发落刺预警，便于检查角色和机关的可读性。
+        world.load(4); world.player.body = {385, 195, 24, 28}; world.player.grounded = false;
+        world.update({}, FixedStep);
+    }
     using Clock = std::chrono::steady_clock;
     auto previous = Clock::now();
     double accumulator = 0;
@@ -185,7 +192,7 @@ int Game::run(Preview preview) {
             if (focused && !smokeTest && !paused && !world.dead && menu.page == Page::Playing) {
                 accumulator += frameTime;
                 while (accumulator >= FixedStep) {
-                    world.update({controls.left, controls.right, pendingJump, controls.shoot, controls.fastFall}, FixedStep);
+                    world.update({controls.left, controls.right, pendingJump, controls.shoot, controls.fastFall, controls.jumpHeld}, FixedStep);
                     pendingJump = false;
                     accumulator -= FixedStep;
                 }
@@ -256,6 +263,7 @@ int Game::run(Preview preview) {
             case Preview::Lasers: path = L"lasers-smoke-test.png"; break;
             case Preview::Boss: path = L"boss-smoke-test.png"; break;
             case Preview::Endless: path = L"endless-smoke-test.png"; break;
+            case Preview::Adventure: path = L"adventure-smoke-test.png"; break;
             default: break;
             }
             saveimage(path);
@@ -287,21 +295,9 @@ void Game::render() const {
         (world.checkpointActive ? L"存档点已激活" : L"前往绿色旗帜存档"), 18, RGB(92, 221, 167));
     label(650, 83, L"积分 " + std::to_wstring(world.scoring.total()) + L"    障碍 " +
         std::to_wstring(world.scoring.cleared()), 18, RGB(255, 230, 90));
-    // 绘制步骤四：所有平台转换到屏幕坐标，顶部用亮边区分可站立表面。
-    for (std::size_t i = 0; i < world.level.platforms.size(); ++i) {
-        if (!world.platformSolid(i)) continue;
-        const auto& tile = world.level.platforms[i];
-        bool fragile = false, triggered = false;
-        for (const auto& f : world.level.fragile) if (f.index == i) { fragile = true; triggered = f.touched; }
-        box(screenRect(tile), fragile ? RGB(128, 88, 67) : RGB(52, 71, 94));
-        box(screenRect({tile.x, tile.y, tile.w, 4}), triggered ? RGB(255, 110, 75) : RGB(127, 165, 194));
-        if (fragile) {
-            const auto r = screenRect(tile);
-            setlinecolor(RGB(49, 34, 38));
-            for (int x = static_cast<int>(r.x) + 20; x < r.right(); x += 30)
-                line(x, static_cast<int>(r.y), x - 8, static_cast<int>(r.bottom()));
-        }
-    }
+    // 绘制步骤四：主题材质、高路、移动轨迹和预警，让地图的可探索区域更清楚。
+    drawTerrain(world);
+    drawAdventureScene(world);
     // 绘制步骤五：使用尖刺活动模块的实时外框画三角形，伸长时变为更鲜明的红色。
     for (std::size_t i = 0; i < world.level.spikes.size(); ++i) {
         const auto spike = screenRect(world.spikeActivity.bounds(i, world.level.spikes[i]));
@@ -330,16 +326,17 @@ void Game::render() const {
     box({goal.x + 5, goal.y + 5, 22, 47}, RGB(76, 61, 42));
     label(static_cast<int>(goal.x) - 4, static_cast<int>(goal.y) - 30, L"终点", 18, RGB(255, 221, 132));
     drawCombatScene(world);
-    // 绘制步骤七：画角色主体、面罩和眼睛，随后显示底部玩法提示。
-    const auto p = screenRect(world.player.body);
-    const COLORREF playerColors[]{RGB(95, 213, 255), RGB(92, 221, 167), RGB(255, 206, 100)};
-    box(p, playerColors[menu.settings.playerPalette]);
-    box({p.x + 4, p.y + 5, 16, 8}, RGB(224, 247, 255));
-    box({p.x + 15, p.y + 7, 3, 4}, RGB(20, 47, 69));
+    // 绘制步骤七：小鸟随奔跑、起跳和落地播放动作，HUD 显示本关探索奖励。
+    drawPlayer(world, menu.settings.playerPalette);
+    if (!world.endless) {
+        const int feathers = static_cast<int>(std::count_if(world.level.feathers.begin(), world.level.feathers.end(), [](const auto& f) { return f.collected; }));
+        label(440, 22, L"星羽 " + std::to_wstring(feathers) + L" / " + std::to_wstring(world.level.feathers.size()), 18, RGB(255, 230, 133));
+    }
     if (menu.settings.showHints)
-        label(32, 590, world.chapter == 1 && !world.endless ? L"裂纹桥面踩踏后会坍塌，及时起跳；避开移动锯轮。" :
+        label(32, 590, world.endless ? L"W 短按小跳 / 长按高跳；S 快落，J 射击。" :
+            (world.chapter == 1 ? L"裂纹桥面踩踏后会坍塌，及时起跳；避开移动锯轮。" :
             (world.chapter == 3 && !world.endless ? L"激光亮起时致命，虚线时可通行。观察节奏再出发。" :
-            L"J 连续射击，踩击敌人；引诱尖刺缩回后再通过。"), 18, RGB(220, 231, 237));
+            L"W 短按小跳 / 长按高跳；起点上方有弹簧与星羽支线。")), 18, RGB(220, 231, 237));
     // 绘制步骤八：死亡结算优先覆盖整个场景，否则显示暂停或通关面板。
     if (world.dead) { drawDeathScreen(world); return; }
     if (paused || world.won) {

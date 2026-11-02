@@ -24,6 +24,8 @@ public:
     // 战斗奖励也按稳定编号只发放一次，死亡重生后重复击败不重复刷分。
     void defeatEnemy(std::size_t index);
     void defeatBoss();
+    // 星羽为额外探索奖励，与普通障碍编号分开，重生后不重复发分。
+    void collectFeather(std::size_t index);
 private:
     // awarded 存储已发分的障碍编号，重生时保留以防重复刷分。
     int score = 0;

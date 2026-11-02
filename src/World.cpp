@@ -2,6 +2,7 @@
 #include "World.h"
 #include "SpecialTraps.h"
 #include "Combat.h"
+#include "AdventureMechanics.h"
 #include <algorithm>
 
 namespace game {
@@ -41,6 +42,7 @@ void World::respawn() {
     for (auto& e : level.enemies) { e.body.x = e.left; e.alive = true; e.direction = 1; }
     // 第一步：复位机关与死亡标记，保留本局累计积分和存档点。
     spikeActivity.reset();
+    resetAdventure(*this);
     dead = false;
     deathReason.clear();
     // 第二步：重置速度和跳跃次数，在出生点或已激活的存档点放置角色。
@@ -71,14 +73,11 @@ void World::update(const Input& input, float dt) {
     extendEndless();
     const Player before = player;
     elapsed += dt;
+    advanceAdventure(*this, dt);
     // 第二步：把方向输入转换成水平速度；只有剩余跳跃次数时才响应跳跃。
-    constexpr float Speed = 250, Gravity = 1550, JumpSpeed = 540;
+    constexpr float Speed = 250, Gravity = 1550;
     player.vx = (static_cast<int>(input.right) - static_cast<int>(input.left)) * Speed;
-    if (input.jump && player.jumpsLeft > 0) {
-        player.vy = -JumpSpeed;
-        --player.jumpsLeft;
-        player.grounded = false;
-    }
+    updateJumpFeel(player, input, dt);
     // 第三步：累积重力并限制下落速度，控制每个固定步长的移动距离。
     player.vy = std::min(player.vy + Gravity * dt, 800.0f);
     // S 在空中转为快速下落；不穿透地面，W 与 S 同时按下时优先起跳。
@@ -96,8 +95,11 @@ void World::update(const Input& input, float dt) {
     }
     player.body.x = std::clamp(player.body.x, 0.0f, std::max(0.0f, level.width - player.body.w));
     // 第五步：处理垂直移动。落地时补充跳跃次数，撞到平台底面时停止上升。
+    const float previousBottom = player.body.bottom();
+    const float landingSpeed = player.vy;
     player.body.y += player.vy * dt;
     player.grounded = false;
+    player.standingSky = -1;
     for (std::size_t i = 0; i < level.platforms.size(); ++i) {
         const auto& tile = level.platforms[i];
         if (!platformSolid(i)) continue;
@@ -109,8 +111,12 @@ void World::update(const Input& input, float dt) {
         } else if (player.vy < 0) player.body.y = tile.bottom();
         player.vy = 0;
     }
-    // 直接走出平台边缘只保留一次空中跳跃，避免获得额外的地面跳跃。
-    if (!player.grounded && player.vy > 0 && player.jumpsLeft == 2) player.jumpsLeft = 1;
+    // 单向高路与移动平台只阻挡向下落地，随后统一恢复跳跃次数和落地动画。
+    landOnSky(*this, previousBottom);
+    if (player.grounded) {
+        player.jumpCut = 0;
+        if (!before.grounded && landingSpeed > 250) player.squash = 1;
+    }
 
     // 第六步：先更新整组尖刺的动态尺寸，再用相同外框检查危险碰撞。
     spikeActivity.update(player.body, level.spikes, dt);
@@ -126,6 +132,7 @@ void World::update(const Input& input, float dt) {
     // 第七步：检查倒挂尖刺和上下夹击；上排尺寸跟随同一组进度，死亡当步不加分。
     for (const auto& trap : level.overheadTraps) if (hitOverheadTrap(trap, *this)) return;
     if (!updateCombat(*this, input, before, dt)) return;
+    if (!finishAdventure(*this, dt)) return;
     // 第八步：越出底部也算死亡；死亡立即返回，不在同一步额外发放积分。
     if (player.body.y > ScreenHeight + 80) { die(L"你坠入了深渊"); return; }
     // 第九步：存活时更新得分，再激活存档点或触发终点。

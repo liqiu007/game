@@ -2,6 +2,9 @@
 #pragma once
 #include "World.h"
 namespace game {
+// 地形按主题绘制纹理；高路机关显示运动轨迹、预警和星羽位置。
+void drawTerrain(const World& world);
+void drawAdventureScene(const World& world);
 void drawBackground(const World& world);
 void drawCombatScene(const World& world);
 }

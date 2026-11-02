@@ -253,7 +253,8 @@ int runSelfTests() {
         check(overheadBounds(crusher, special).h == 24, "Respawn must reset upper crusher geometry");
         // 所有检查通过返回成功；任意断言异常都在下方转换为失败提示和退出码。
         runExtendedTests();
-        std::cout << "PASS: campaign route, menu, settings, combat, lasers, boss, endless generation, traps, scoring\n";
+        runAdventureTests();
+        std::cout << "PASS: five campaign routes, five feather routes, jump feel, adventure hazards, menu, fullscreen mapping, combat, boss, endless, scoring\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "FAIL: " << e.what() << '\n';

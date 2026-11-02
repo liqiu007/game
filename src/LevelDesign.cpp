@@ -1,5 +1,6 @@
 // 五关配置与无尽地图生成：关卡共享基础操作，主题、机关和通关目标各不相同。
 #include "World.h"
+#include "AdventureMechanics.h"
 #include <algorithm>
 
 namespace game {
@@ -32,6 +33,8 @@ Level Level::campaign(int index) {
         result.lasers = {{{1450, 260, 12, 155}, 4.0f, 1.0f, 2.0f}};
         result.saws = {{{980, 335, 24, 24}, 980, 40, 1.3f}};
     }
+    // 高路提供星羽探索奖励，各关使用不同移动方向、定时平台或预警落刺。
+    buildAdventureRoute(result);
     return result;
 }
 void World::load(int index, bool endlessMode) {

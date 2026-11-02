@@ -1,5 +1,6 @@
 // 主页面实现：独立维护菜单状态，使用 EasyX 绘制可交互的游戏入口。
 #include "Menu.h"
+#include "CharacterRenderer.h"
 #pragma warning(push)
 #pragma warning(disable: 4201)
 #include <graphics.h>
@@ -49,7 +50,7 @@ std::wstring Menu::itemText(int index) const {
     if (page == Page::Settings) {
         if (index == 0) return std::wstring(L"操作提示   ") + (settings.showHints ? L"开启" : L"关闭");
         if (index == 1) {
-            const wchar_t* colors[]{L"冰蓝", L"薄荷", L"琥珀"};
+            const wchar_t* colors[]{L"啾比金", L"薄荷绿", L"晴空蓝"};
             return std::wstring(L"角色配色   ") + colors[settings.playerPalette];
         }
         if (index == 2) return L"帧率上限   " + std::to_wstring(settings.frameLimit) + L" FPS";
@@ -153,9 +154,7 @@ void Menu::render() const {
     fill(536, 432, 860, 452, RGB(52, 71, 94));
     fill(650, 304, 850, 314, RGB(52, 71, 94));
     for (int i = 0; i < 4; ++i) { spike(674 + i * 26, 432, false); spike(674 + i * 26, 314, true); }
-    const COLORREF colors[]{RGB(95, 213, 255), RGB(92, 221, 167), RGB(255, 206, 100)};
-    fill(582, 398, 608, 431, colors[settings.playerPalette]);
-    fill(586, 403, 604, 412, RGB(224, 247, 255));
+    drawBird(595, 404, 1.35f, 1, settings.playerPalette, 0, 0, false, 0, 0);
     text(520, 475, L"成组伸缩 / 倒挂尖刺 / 上下夹击", 17, RGB(255, 157, 170));
     text(520, 508, L"观察机关，找准时机，再跳一次。", 16, RGB(153, 178, 202));
     // 绘制步骤四：给出导航规则和继续游戏的实际存续范围。

@@ -126,8 +126,8 @@ void runExtendedTests() {
     require(endless.scoring.total() == score, "Generation must not award old platforms again");
     endless.restart();
     require(endless.endless && endless.scoring.total() == 0 && endless.player.body.x == 60, "Endless restart must reset run but keep mode");
-    // 第七组：其余四关也使用真实等待、跳跃、射击走到终点，确保机制组合没有封死路线。
-    for (int chapter = 1; chapter < 5; ++chapter) {
+    // 第七组：五关实际配置均使用真实等待、跳跃、射击走到终点，包含新增高路的影响。
+    for (int chapter = 0; chapter < 5; ++chapter) {
         World route; route.load(chapter);
         steps(route, 34, {false, true, false}); steps(route, 180);
         for (float target : {365.0f, 555.0f, 780.0f, 970.0f, 1180.0f, 1410.0f, 1640.0f, 1870.0f, 2080.0f}) {

@@ -21,7 +21,26 @@ struct Rect {
 bool overlaps(const Rect& a, const Rect& b);
 
 // 移动是持续状态；jump 由主循环转换为单次按下事件。
-struct Input { bool left = false, right = false, jump = false, shoot = false, fastFall = false; };
+struct Input {
+    bool left = false, right = false, jump = false, shoot = false, fastFall = false;
+    // 模拟输入默认长按；真实键盘传入 W 当前状态，用于短按小跳。
+    bool jumpHeld = true;
+};
+// 支线机关使用单向平台，不改变原有实体平台的碰撞和积分编号。
+struct SkyPlatform {
+    Rect body;
+    float homeX, homeY, travelX = 0, travelY = 0, period = 4;
+    bool timed = false;
+    float dx = 0, dy = 0;
+};
+struct Spring { Rect body; float flash = 0; };
+enum class FallingPhase { Idle, Warning, Falling, Resting };
+struct FallingSpike {
+    Rect body;
+    float homeY, speed = 0, timer = 0;
+    FallingPhase phase = FallingPhase::Idle;
+};
+struct Feather { Rect body; bool collected = false; };
 // 各类机关的数据与运行状态分开保存，重生时恢复初始状态。
 struct FragilePlatform { std::size_t index; float timer = 0.65f; bool touched = false, collapsed = false; };
 struct Enemy { Rect body; float left, right, speed = 65; int direction = 1; bool alive = true; };
@@ -44,6 +63,10 @@ struct Player {
     float vx = 0, vy = 0;
     int jumpsLeft = 2;
     bool grounded = false;
+    // 参考 JubilWanna：离边容错、落地前缓存，以及起跳/落地的形变动画。
+    float coyote = 0, jumpBuffer = 0, jumpCut = 0;
+    float animTime = 0, runPhase = 0, squash = 0, stretch = 0, springCooldown = 0;
+    int standingSky = -1;
 };
 // 关卡使用世界坐标；分值数组与对应的尖刺/平台数组按索引匹配。
 struct Level {
@@ -63,6 +86,10 @@ struct Level {
     std::vector<Laser> lasers;
     std::vector<Saw> saws;
     bool boss = false;
+    std::vector<SkyPlatform> skyPlatforms;
+    std::vector<Spring> springs;
+    std::vector<FallingSpike> fallingSpikes;
+    std::vector<Feather> feathers;
     // 创建第一关的基础路线：10 个平台、4 组地面尖刺、倒刺与夹击机关。
     static Level tutorial();
     // 闯关模式按编号创建五种主题；无尽模式在前方继续生成可跳跃的平台。
@@ -105,4 +132,5 @@ public:
 // 测试入口返回 0 表示通过，非零表示发现问题。
 int runSelfTests();
 void runExtendedTests();
+void runAdventureTests();
 }

@@ -53,6 +53,7 @@ void ScoreSystem::settleDeath() { finalScore = score; }
 void ScoreSystem::reset() { score = 0; finalScore = 0; awarded.clear(); }
 void ScoreSystem::defeatEnemy(std::size_t index) { award(std::size_t{0xC0000000} + index, 200); }
 void ScoreSystem::defeatBoss() { award(std::size_t{0xFFFFFFFE}, 1000); }
+void ScoreSystem::collectFeather(std::size_t index) { award(std::size_t{0xD0000000} + index, 500); }
 
 namespace {
 // 绘制和鼠标命中共用两块按钮区域；坐标属于屏幕，不受镜头影响。
