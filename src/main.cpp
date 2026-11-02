@@ -14,6 +14,17 @@ int main(int argc, char* argv[]) {
         if (option == "--death-smoke-test") preview = game::Preview::Death;
         if (option == "--spike-smoke-test") preview = game::Preview::Spikes;
         if (option == "--map-smoke-test") preview = game::Preview::Map;
+        if (option == "--menu-smoke-test") preview = game::Preview::Home;
+        if (option == "--levels-smoke-test") preview = game::Preview::Levels;
+        if (option == "--settings-smoke-test") preview = game::Preview::Settings;
+        if (option == "--traps-smoke-test") preview = game::Preview::Traps;
+        if (option == "--modes-smoke-test") preview = game::Preview::Modes;
+        if (option == "--window-smoke-test") preview = game::Preview::Window;
+        if (option == "--bridge-smoke-test") preview = game::Preview::Bridge;
+        if (option == "--enemies-smoke-test") preview = game::Preview::Enemies;
+        if (option == "--lasers-smoke-test") preview = game::Preview::Lasers;
+        if (option == "--boss-smoke-test") preview = game::Preview::Boss;
+        if (option == "--endless-smoke-test") preview = game::Preview::Endless;
     }
     // 第三步：启动窗口和游戏循环，并把运行结果返回操作系统。
     return application.run(preview);

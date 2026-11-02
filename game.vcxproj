@@ -35,7 +35,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard><ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories>$(ProjectDir)src;$(EasyXRoot)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>UNICODE;_UNICODE;NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>UNICODE;_UNICODE;NOMINMAX;WIN32_LEAN_AND_MEAN;WINVER=0x0A00;_WIN32_WINNT=0x0A00;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary Condition="'$(Configuration)'=='Debug'">MultiThreadedDebug</RuntimeLibrary>
       <RuntimeLibrary Condition="'$(Configuration)'=='Release'">MultiThreaded</RuntimeLibrary>
@@ -51,8 +51,13 @@
     <ClInclude Include="src\World.h" /><ClInclude Include="src\Game.h" />
     <ClInclude Include="src\system.h" /><ClCompile Include="src\system.cpp" />
     <ClInclude Include="src\SpikeActivity.h" /><ClCompile Include="src\SpikeActivity.cpp" />
+    <ClInclude Include="src\Menu.h" /><ClCompile Include="src\Menu.cpp" />
+    <ClInclude Include="src\SpecialTraps.h" /><ClCompile Include="src\SpecialTraps.cpp" />
+    <ClCompile Include="src\LevelDesign.cpp" /><ClInclude Include="src\Combat.h" /><ClCompile Include="src\Combat.cpp" />
+    <ClInclude Include="src\SceneRenderer.h" /><ClCompile Include="src\SceneRenderer.cpp" />
     <ClCompile Include="src\main.cpp" /><ClCompile Include="src\World.cpp" />
     <ClCompile Include="src\Game.cpp" /><ClCompile Include="tests\WorldTests.cpp" />
+    <ClCompile Include="tests\ExtendedTests.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

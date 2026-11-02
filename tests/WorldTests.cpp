@@ -1,5 +1,7 @@
 // 无窗口回归测试：验证物理、完整通关、计分、死亡、镜头及尖刺组同步。
 #include "World.h"
+#include "Menu.h"
+#include "SpecialTraps.h"
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -99,7 +101,7 @@ int runSelfTests() {
         jumpTo(route, 2080);
         step(route, 50, {false, true, false});
         check(route.won && route.deaths == 0, "Tutorial must be completable without dying");
-        check(route.scoring.total() == 3100 && route.scoring.cleared() == 17, "Expanded route must score all eight spikes and nine platforms");
+        check(route.scoring.total() == 3400 && route.scoring.cleared() == 20, "Expanded route must score floor spikes, ceiling spikes and platforms");
         // 测试七：镜头停在地图边界，重生与重开后立即返回正确视野，窄地图不滚动。
         check(route.cameraX() == route.level.width - ScreenWidth, "Camera must stop at the map's right edge");
         route.respawn();
@@ -200,8 +202,58 @@ int runSelfTests() {
                 groups.bounds(1, unorderedSpikes[1]).h == groups.bounds(2, unorderedSpikes[2]).h,
                 "Group members must remain synchronized throughout the whole cycle");
         }
+        // 测试十八：禁用不存在的继续进度，经模式页面进入真实的五关选择列表。
+        Menu menu;
+        check(menu.page == Page::Home && !menu.hasSession && !menu.enabled(1), "Fresh menu must disable continue");
+        check(menu.click(100, 310) == MenuAction::None && menu.page == Page::Home, "Disabled continue must not start a game");
+        menu.move(1);
+        check(menu.selected == 2, "Keyboard navigation should skip disabled continue");
+        menu.activate();
+        check(menu.page == Page::Modes && menu.itemCount() == 3, "Home must open game modes before level selection");
+        menu.activate();
+        check(menu.page == Page::Levels && menu.itemCount() == 6, "Campaign must contain five levels and back");
+        check(menu.activate() == MenuAction::Start && menu.page == Page::Playing && menu.hasSession, "Level selection must start the only level");
+        menu.home();
+        check(menu.selected == 1 && menu.activate() == MenuAction::Continue, "Returning home must allow continuing current session");
+        // 测试十九：三项设置真实切换，返回页面不影响是否能继续游戏。
+        menu.home();
+        menu.selected = 3;
+        menu.activate();
+        check(menu.page == Page::Settings, "Settings page must open");
+        menu.activate();
+        check(!menu.settings.showHints, "Hint toggle must change value");
+        menu.selected = 1;
+        menu.activate(); menu.activate(); menu.activate();
+        check(menu.settings.playerPalette == 0, "Palette selection must wrap after three colors");
+        menu.selected = 2;
+        menu.activate();
+        check(menu.settings.frameLimit == 60, "Frame limit toggle must switch to 60 FPS");
+        menu.selected = 3; menu.activate();
+        check(menu.settings.windowSize == 1, "Window size must switch to 1200x800");
+        menu.selected = 4;
+        menu.activate();
+        check(menu.page == Page::Home && menu.hasSession, "Leaving settings must retain session");
+        check(menu.click(100, 250) == MenuAction::None && menu.page == Page::Modes, "Mouse start must open modes");
+        menu.home(); menu.selected = 4;
+        check(menu.activate() == MenuAction::Exit, "Exit button must return exit action");
+        // 测试二十：倒挂尖刺判定致命，夹击上排与下排使用完全相同的伸缩进度。
+        World special;
+        const auto ceiling = special.level.overheadTraps[0];
+        special.player.body = {ceiling.body.x + 6, ceiling.body.y + 20, 24, 28};
+        check(hitOverheadTrap(ceiling, special) && special.dead, "Ceiling spike must kill on contact");
+        special.restart();
+        const auto& crusher = special.level.overheadTraps[3];
+        special.player.body = {1180, 452, 24, 28};
+        step(special, 12);
+        check(!special.dead && overheadBounds(crusher, special).h == 120, "Crusher must close when its floor group extends");
+        check(overheadBounds(ceiling, special).h == 48, "Static ceiling must not extend with other traps");
+        step(special, 180);
+        check(overheadBounds(crusher, special).h == 24, "Crusher must retract with its floor group");
+        special.respawn();
+        check(overheadBounds(crusher, special).h == 24, "Respawn must reset upper crusher geometry");
         // 所有检查通过返回成功；任意断言异常都在下方转换为失败提示和退出码。
-        std::cout << "PASS: physics, expanded full route, 3100 score, camera, settlement, grouped traps, collision, reset\n";
+        runExtendedTests();
+        std::cout << "PASS: campaign route, menu, settings, combat, lasers, boss, endless generation, traps, scoring\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "FAIL: " << e.what() << '\n';

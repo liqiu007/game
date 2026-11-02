@@ -1,5 +1,7 @@
 // 规则层实现：建立关卡、更新物理、处理机关和死亡，再计算积分与进度。
 #include "World.h"
+#include "SpecialTraps.h"
+#include "Combat.h"
 #include <algorithm>
 
 namespace game {
@@ -18,7 +20,11 @@ Level Level::tutorial() {
         {{180, 526, 24, 24}, {204, 526, 24, 24}, {625, 406, 24, 24}, {649, 406, 24, 24},
          {1245, 456, 24, 24}, {1269, 456, 24, 24}, {1705, 326, 24, 24}, {1729, 326, 24, 24}},
         {555, 386, 24, 44}, {2170, 308, 32, 52}, 60, 522,
-        {100, 100, 100, 100, 100, 100, 100, 100}, {0, 150, 200, 250, 200, 250, 300, 300, 300, 350}, 2240
+        {100, 100, 100, 100, 100, 100, 100, 100}, {0, 150, 200, 250, 200, 250, 300, 300, 300, 350}, 2240,
+        // 普通倒挂尖刺放在跨越路线高处；夹击上排和下方第 4、5 号尖刺联动。
+        {{{1040, 150, 24, 48}, TrapStyle::Ceiling}, {{1064, 150, 24, 48}, TrapStyle::Ceiling},
+         {{1088, 150, 24, 48}, TrapStyle::Ceiling}, {{1245, 230, 24, 24}, TrapStyle::Crusher, 4, 120, 0},
+         {{1269, 230, 24, 24}, TrapStyle::Crusher, 5, 120, 0}}
     };
 }
 // 创建世界后按出生点放置角色，并准备所有尖刺组。
@@ -29,6 +35,10 @@ float World::cameraX() const {
         0.0f, std::max(0.0f, level.width - ScreenWidth));
 }
 void World::respawn() {
+    // 重生恢复战斗机关，积分记录仍保留，避免靠反复重生刷分。
+    projectiles.clear(); bossHealth = 12; bossTimer = 0; shootCooldown = 0; facing = 1;
+    for (auto& f : level.fragile) { f.timer = 0.65f; f.touched = false; f.collapsed = false; }
+    for (auto& e : level.enemies) { e.body.x = e.left; e.alive = true; e.direction = 1; }
     // 第一步：复位机关与死亡标记，保留本局累计积分和存档点。
     spikeActivity.reset();
     dead = false;
@@ -52,17 +62,13 @@ void World::die(const wchar_t* reason) {
     scoring.settleDeath();
 }
 void World::restart() {
-    // 清除本局进度、计时和计分记录，再复用重生流程回到起点。
-    checkpointActive = false;
-    won = false;
-    elapsed = 0;
-    deaths = 0;
-    scoring.reset();
-    respawn();
+    // 根据当前模式重新构建关卡，无尽模式也会清除已生成的旧路段。
+    load(chapter, endless);
 }
 void World::update(const Input& input, float dt) {
     // 第一步：结算后冻结世界；正常更新时保存上一步状态用于判断新得分。
     if (won || dead) return;
+    extendEndless();
     const Player before = player;
     elapsed += dt;
     // 第二步：把方向输入转换成水平速度；只有剩余跳跃次数时才响应跳跃。
@@ -78,7 +84,9 @@ void World::update(const Input& input, float dt) {
 
     // 第四步：先水平移动并推出相交平台，再限制在地图范围内。
     player.body.x += player.vx * dt;
-    for (const auto& tile : level.platforms) {
+    for (std::size_t i = 0; i < level.platforms.size(); ++i) {
+        const auto& tile = level.platforms[i];
+        if (!platformSolid(i)) continue;
         if (!overlaps(player.body, tile)) continue;
         if (player.vx > 0) player.body.x = tile.x - player.body.w;
         else if (player.vx < 0) player.body.x = tile.right();
@@ -88,7 +96,9 @@ void World::update(const Input& input, float dt) {
     // 第五步：处理垂直移动。落地时补充跳跃次数，撞到平台底面时停止上升。
     player.body.y += player.vy * dt;
     player.grounded = false;
-    for (const auto& tile : level.platforms) {
+    for (std::size_t i = 0; i < level.platforms.size(); ++i) {
+        const auto& tile = level.platforms[i];
+        if (!platformSolid(i)) continue;
         if (!overlaps(player.body, tile)) continue;
         if (player.vy > 0) {
             player.body.y = tile.y - player.body.h;
@@ -111,11 +121,14 @@ void World::update(const Input& input, float dt) {
             return;
         }
     }
-    // 第七步：越出底部也算死亡；死亡立即返回，不在同一步额外发放积分。
+    // 第七步：检查倒挂尖刺和上下夹击；上排尺寸跟随同一组进度，死亡当步不加分。
+    for (const auto& trap : level.overheadTraps) if (hitOverheadTrap(trap, *this)) return;
+    if (!updateCombat(*this, input, before, dt)) return;
+    // 第八步：越出底部也算死亡；死亡立即返回，不在同一步额外发放积分。
     if (player.body.y > ScreenHeight + 80) { die(L"你坠入了深渊"); return; }
-    // 第八步：存活时更新得分，再激活存档点或触发终点。
+    // 第九步：存活时更新得分，再激活存档点或触发终点。
     scoring.update(before, player, level);
     if (overlaps(player.body, level.checkpoint)) checkpointActive = true;
-    if (overlaps(player.body, level.goal)) won = true;
+    if (!endless && overlaps(player.body, level.goal) && (!level.boss || bossHealth <= 0)) won = true;
 }
 }

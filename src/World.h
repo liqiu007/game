@@ -21,7 +21,23 @@ struct Rect {
 bool overlaps(const Rect& a, const Rect& b);
 
 // 移动是持续状态；jump 由主循环转换为单次按下事件。
-struct Input { bool left = false, right = false, jump = false; };
+struct Input { bool left = false, right = false, jump = false, shoot = false; };
+// 各类机关的数据与运行状态分开保存，重生时恢复初始状态。
+struct FragilePlatform { std::size_t index; float timer = 0.65f; bool touched = false, collapsed = false; };
+struct Enemy { Rect body; float left, right, speed = 65; int direction = 1; bool alive = true; };
+struct Laser { Rect body; float period = 3.4f, activeSeconds = 1.2f, offset = 0; };
+struct Saw { Rect body; float originX, range, rate; };
+struct Projectile { Rect body; float vx, vy, life = 3; bool hostile = false; };
+// 特殊陷阱保持世界坐标；夹击类型关联现有地面尖刺，使上下两侧同步动作。
+enum class TrapStyle { Ceiling, Crusher };
+struct OverheadTrap {
+    Rect body;
+    TrapStyle style = TrapStyle::Ceiling;
+    std::size_t linkedSpike = 0;
+    float extendedHeight = 120;
+    // 普通倒刺独立奖励；上下夹击与关联的地面尖刺合并计分，配置为 0。
+    int points = 100;
+};
 // 玩家包含碰撞盒、速度和跳跃次数；落地后补满两次跳跃。
 struct Player {
     Rect body{60, 522, 24, 28};
@@ -39,8 +55,18 @@ struct Level {
     std::vector<int> spikeScores;
     std::vector<int> platformScores;
     float width = 2240;
-    // 创建默认扩展关卡：10 个平台、4 组尖刺和一个存档点。
+    std::vector<OverheadTrap> overheadTraps;
+    int theme = 0;
+    std::wstring name = L"小试牛刀";
+    std::vector<FragilePlatform> fragile;
+    std::vector<Enemy> enemies;
+    std::vector<Laser> lasers;
+    std::vector<Saw> saws;
+    bool boss = false;
+    // 创建第一关的基础路线：10 个平台、4 组地面尖刺、倒刺与夹击机关。
     static Level tutorial();
+    // 闯关模式按编号创建五种主题；无尽模式在前方继续生成可跳跃的平台。
+    static Level campaign(int index);
 };
 
 // 规则层不直接调用 EasyX，便于在不创建窗口的情况下验证物理与通关。
@@ -57,6 +83,11 @@ public:
     ScoreSystem scoring;
     SpikeActivity spikeActivity = SpikeActivity::tutorial(level.spikes);
     float elapsed = 0;
+    int chapter = 0;
+    bool endless = false;
+    int facing = 1, bossHealth = 12;
+    float shootCooldown = 0, bossTimer = 0;
+    std::vector<Projectile> projectiles;
 
     // 构造时放置角色；每个固定步长推进一次物理与机关。
     World();
@@ -65,9 +96,13 @@ public:
     void respawn();
     void die(const wchar_t* reason);
     void restart();
+    void load(int index, bool endlessMode = false);
+    void extendEndless();
+    bool platformSolid(std::size_t index) const;
     // 镜头跟随角色但不会超出地图左右边界。
     float cameraX() const;
 };
 // 测试入口返回 0 表示通过，非零表示发现问题。
 int runSelfTests();
+void runExtendedTests();
 }

@@ -36,13 +36,22 @@ void ScoreSystem::update(const Player& before, const Player& after, const Level&
         if (!before.grounded && after.grounded && after.body.right() > platform.x &&
             after.body.x < platform.right() && std::abs(after.body.bottom() - platform.y) < 0.1f) {
             const int points = i < level.platformScores.size() ? level.platformScores[i] : 0;
-            award(level.spikes.size() + i, points);
+            // 使用固定编号区间，无尽模式新增尖刺时不会改变旧平台的奖励编号。
+            award((std::size_t{1} << 30) + i, points);
         }
+    }
+    // 第三步：安全从倒挂尖刺下方穿过同样获得奖励，夹击上排与地面合并计分。
+    for (std::size_t i = 0; i < level.overheadTraps.size(); ++i) {
+        const auto& trap = level.overheadTraps[i];
+        if (before.body.x < trap.body.right() && after.body.x >= trap.body.right() && after.body.y >= trap.body.bottom())
+            award((std::size_t{1} << 31) + i, trap.points);
     }
 }
 // 死亡冻结显示分数；只有重新开始才同时清除累计分数和已计分记录。
 void ScoreSystem::settleDeath() { finalScore = score; }
 void ScoreSystem::reset() { score = 0; finalScore = 0; awarded.clear(); }
+void ScoreSystem::defeatEnemy(std::size_t index) { award(std::size_t{0xC0000000} + index, 200); }
+void ScoreSystem::defeatBoss() { award(std::size_t{0xFFFFFFFE}, 1000); }
 
 namespace {
 // 绘制和鼠标命中共用两块按钮区域；坐标属于屏幕，不受镜头影响。
@@ -89,7 +98,7 @@ DeathAction deathScreenClick(int x, int y) {
 
 void drawDeathScreen(const World& world) {
     // 第一步：给当前帧叠加暗红色调，保留死亡地点作为结算背景。
-    DWORD* pixels = GetImageBuffer();
+    DWORD* pixels = GetImageBuffer(GetWorkingImage());
     for (int i = 0; i < ScreenWidth * ScreenHeight; ++i) {
         const DWORD p = pixels[i];
         const DWORD red = ((p >> 16) & 255) / 3 + 55;
@@ -108,6 +117,10 @@ void drawDeathScreen(const World& world) {
     POINT mouse{};
     GetCursorPos(&mouse);
     ScreenToClient(GetHWnd(), &mouse);
+    // 窗口可缩放，按钮布局仍使用 960×640 逻辑坐标。
+    RECT client{};
+    GetClientRect(GetHWnd(), &client);
+    if (client.right > 0 && client.bottom > 0) { mouse.x = mouse.x * ScreenWidth / client.right; mouse.y = mouse.y * ScreenHeight / client.bottom; }
     button(RespawnButton, L"重生  [Enter / R]", mouse);
     button(RestartButton, L"重新开始  [Shift + R]", mouse);
     centered(491, L"重生保留积分与存档点 · 重新开始清空本局", 17, RGB(220, 197, 197));

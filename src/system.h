@@ -21,6 +21,9 @@ public:
     // 死亡保存分数快照，重新开始才清除分数与防重复记录。
     void settleDeath();
     void reset();
+    // 战斗奖励也按稳定编号只发放一次，死亡重生后重复击败不重复刷分。
+    void defeatEnemy(std::size_t index);
+    void defeatBoss();
 private:
     // awarded 存储已发分的障碍编号，重生时保留以防重复刷分。
     int score = 0;

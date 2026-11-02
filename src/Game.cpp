@@ -1,5 +1,7 @@
 // 游戏主循环与画面：收集输入、按固定步长更新世界，再绘制当前状态。
 #include "Game.h"
+#include "SpecialTraps.h"
+#include "SceneRenderer.h"
 #pragma warning(push)
 #pragma warning(disable: 4201) // EasyX 消息结构使用匿名联合，仅在此头文件内忽略警告。
 #include <graphics.h>
@@ -7,6 +9,8 @@
 #include <algorithm>
 #include <chrono>
 #include <string>
+#include <thread>
+#include <iostream>
 
 namespace game {
 namespace {
@@ -27,138 +31,243 @@ bool down(int key) { return (GetAsyncKeyState(key) & 0x8000) != 0; }
 }
 
 int Game::run(Preview preview) {
-    // 第一步：选择正常运行或截图模式，创建 EasyX 窗口并启用批量绘图。
+    // 第一步：创建窗口。正常启动停留主页面，截图模式直接进入指定页面或场景。
     const bool smokeTest = preview != Preview::None;
-    const bool deathPreview = preview == Preview::Death;
-    const bool spikePreview = preview == Preview::Spikes;
-    const HWND window = initgraph(ScreenWidth, ScreenHeight);
+    // 使用固定逻辑画布，窗口大小只影响最终缩放，不改变物理坐标。
+    int widths[]{960, 1200, 1440}, heights[]{640, 800, 960};
+    int appliedSize = menu.settings.windowSize;
+    HWND window = initgraph(widths[appliedSize], heights[appliedSize]);
+    IMAGE canvas(ScreenWidth, ScreenHeight);
     if (!window) return 1;
-    SetWindowTextW(window, L"game | EasyX 平台跳跃原型");
+    // 大尺寸若超过当前显示器工作区，保持 3:2 比例缩小，防止系统单独截掉高度。
+    MONITORINFO monitor{sizeof(MONITORINFO)};
+    RECT outer{}, client{};
+    GetWindowRect(window, &outer); GetClientRect(window, &client);
+    if (GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST), &monitor)) {
+        const int maxW = static_cast<int>(monitor.rcWork.right - monitor.rcWork.left - (outer.right - outer.left - client.right));
+        const int maxH = static_cast<int>(monitor.rcWork.bottom - monitor.rcWork.top - (outer.bottom - outer.top - client.bottom));
+        for (int i = 0; i < 3; ++i) {
+            const int unit = std::max(1, std::min({widths[i] / 3, heights[i] / 2, maxW / 3, maxH / 2}));
+            widths[i] = unit * 3; heights[i] = unit * 2;
+        }
+        // 起始窗口也可能受小屏幕限制，首次绘制前用适配后的尺寸重新建立。
+        if (client.right != widths[appliedSize] || client.bottom != heights[appliedSize]) {
+            closegraph(); window = initgraph(widths[appliedSize], heights[appliedSize]);
+            if (!window) return 1;
+        }
+    }
+    SetWindowTextW(window, L"game | 极限试炼");
     setbkmode(TRANSPARENT);
     BeginBatchDraw();
-    // 第二步：准备单调时钟、模拟时间累计器和按键历史，保证物理不依赖帧率。
+    if (smokeTest) {
+        menu.page = preview == Preview::Home ? Page::Home :
+            (preview == Preview::Levels ? Page::Levels : (preview == Preview::Modes ? Page::Modes :
+            ((preview == Preview::Settings || preview == Preview::Window) ? Page::Settings : Page::Playing)));
+    }
+    // 第二步：构造验证场景，使用真实机关和计分流程，菜单预览不伪造继续游戏记录。
+    if (preview == Preview::Death || preview == Preview::Spikes) {
+        for (int i = 0; i < 34; ++i) world.update({false, true, false}, FixedStep);
+        const int steps = preview == Preview::Death ? 180 : 12;
+        for (int i = 0; i < steps; ++i) world.update({}, FixedStep);
+        if (preview == Preview::Death) {
+            for (int i = 0; i < 180; ++i) {
+                world.update({false, world.player.body.x < 365, i == 0 || i == 36}, FixedStep);
+                if (i > 36 && world.player.grounded) break;
+            }
+            world.die(L"你坠入了深渊");
+        }
+    }
+    if (preview == Preview::Map || preview == Preview::Traps) {
+        world.player.body = preview == Preview::Map ? Rect{1640, 322, 24, 28} : Rect{1180, 452, 24, 28};
+        for (int i = 0; i < 12; ++i) world.update({}, FixedStep);
+    }
+    // 主题预览定位到具有代表性的机关区域，真实关卡配置与正常游戏一致。
+    if (preview == Preview::Bridge || preview == Preview::Enemies || preview == Preview::Lasers || preview == Preview::Boss || preview == Preview::Endless) {
+        const int chapter = preview == Preview::Bridge ? 1 : (preview == Preview::Enemies ? 2 : (preview == Preview::Lasers ? 3 : 4));
+        world.load(chapter, preview == Preview::Endless);
+        if (preview == Preview::Boss) world.player.body = {2060, 332, 24, 28};
+        else if (preview != Preview::Endless) world.player.body = {970, 397, 24, 28};
+    }
+    // 第三步：记录前一帧按键，统一处理菜单与游戏的单次按下事件，防止跨页面误触发。
     using Clock = std::chrono::steady_clock;
     auto previous = Clock::now();
     double accumulator = 0;
-    bool previousJump = false, previousPause = false, previousReset = false;
-    bool previousEnter = false;
+    bool previousKeys[256]{};
     bool pendingJump = false;
+    bool running = true;
     int frames = 0;
-    if (deathPreview) {
-        // 死亡预览先运行真实路线获得积分，再触发结算，避免伪造界面分数。
-        for (int i = 0; i < 34; ++i) world.update({false, true, false}, FixedStep);
-        for (int i = 0; i < 180; ++i) world.update({}, FixedStep);
-        for (int i = 0; i < 180; ++i) {
-            world.update({false, world.player.body.x < 365, i == 0 || i == 36}, FixedStep);
-            if (i > 36 && world.player.grounded) break;
-        }
-        world.die(L"你坠入了深渊");
-    }
-
-    if (spikePreview) {
-        // 尖刺预览把角色移动到安全触发位置，等待整组伸长再截图。
-        for (int i = 0; i < 34; ++i) world.update({false, true, false}, FixedStep);
-        for (int i = 0; i < 12; ++i) world.update({}, FixedStep);
-    }
-    if (preview == Preview::Map) {
-        // 地图预览设置后半段位置，检查横向滚动后的场景绘制。
-        world.player.body = {1640, 322, 24, 28};
-        for (int i = 0; i < 12; ++i) world.update({}, FixedStep);
-    }
-
-    while (IsWindow(window)) {
-        // 第三步：计算本帧耗时并限制最大补算量，防止窗口卡顿后物理跳跃过大。
+    while (running && IsWindow(window)) {
         const auto now = Clock::now();
         const double frameTime = std::min(std::chrono::duration<double>(now - previous).count(), 0.1);
         previous = now;
         const bool focused = GetForegroundWindow() == window;
-        // 第四步：清空消息队列，死亡时把鼠标点击转换为结算按钮动作。
-        DeathAction action = DeathAction::None;
+        bool keys[256]{};
+        for (int key : {VK_ESCAPE, VK_RETURN, VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT, VK_SPACE, VK_SHIFT, 65, 68, 74, 80, 82, 90})
+            keys[key] = focused && !smokeTest && down(key);
+        const auto pressed = [&](int key) { return keys[key] && !previousKeys[key]; };
+        // 第四步：收集鼠标移动和点击，菜单按钮和死亡按钮根据当前页面分别处理。
+        bool clicked = false;
+        int clickX = 0, clickY = 0;
         ExMessage message;
         while (peekmessage(&message)) {
-            if (focused && world.dead && message.message == WM_LBUTTONDOWN)
-                action = deathScreenClick(message.x, message.y);
-        }
-        // 第五步：只在窗口获得焦点时接收键盘，比较前后帧识别单次暂停/重生。
-        if (focused && down(VK_ESCAPE)) break;
-        const bool jump = focused && (down(VK_SPACE) || down('Z'));
-        const bool pause = focused && down('P');
-        const bool reset = focused && down('R');
-        const bool enter = focused && down(VK_RETURN);
-        if (pause && !previousPause && !world.dead && !world.won) { paused = !paused; pendingJump = false; }
-        if (reset && !previousReset) {
-            if (world.won || down(VK_SHIFT)) action = DeathAction::Restart;
-            else if (world.dead) action = DeathAction::Respawn;
-            else world.die(L"你选择了结束本次挑战");
-            pendingJump = false;
-        }
-        if (world.dead && enter && !previousEnter) action = DeathAction::Respawn;
-        // 第六步：统一执行键盘或鼠标请求的动作，清掉旧跳跃和积累的模拟时间。
-        if (action != DeathAction::None) {
-            if (action == DeathAction::Restart) world.restart();
-            else world.respawn();
-            paused = false;
-            pendingJump = false;
-            accumulator = 0;
-        }
-        // 第七步：缓存跳跃按下事件直到下一次物理更新，避免两次更新之间丢失输入。
-        if (jump && !previousJump && !paused && focused && !world.dead && action == DeathAction::None) pendingJump = true;
-        previousJump = jump;
-        previousPause = pause;
-        previousReset = reset;
-        previousEnter = enter;
-        // 第八步：以固定 120 Hz 推进规则；一个跳跃事件只交给第一步更新。
-        // 暂停、失去焦点或死亡时清空积累时间，恢复后不补算停顿期间的动作。
-        if (focused && !paused && !world.dead) {
-            accumulator += frameTime;
-            while (accumulator >= FixedStep) {
-                world.update({down('A') || down(VK_LEFT), down('D') || down(VK_RIGHT), pendingJump}, FixedStep);
-                pendingJump = false;
-                accumulator -= FixedStep;
+            if (!focused || smokeTest) continue;
+            if (message.message == WM_MOUSEMOVE || message.message == WM_LBUTTONDOWN) {
+                const int x = message.x * ScreenWidth / widths[appliedSize], y = message.y * ScreenHeight / heights[appliedSize];
+                if (message.message == WM_MOUSEMOVE && menu.page != Page::Playing) menu.hover(x, y);
+                if (message.message == WM_LBUTTONDOWN) { clicked = true; clickX = x; clickY = y; }
             }
-        } else { accumulator = 0; pendingJump = false; }
-        // 第九步：绘制世界和覆盖界面，再统一刷新批量绘图缓冲区。
-        render();
-        if (!focused && !paused && !world.won && !world.dead)
-            label(340, 280, L"点击游戏窗口继续", 26, RGB(255, 221, 132));
+        }
+        if (menu.page != Page::Playing) {
+            // 第五步：菜单期间冻结模拟。新游戏清空旧进度，继续游戏只恢复页面。
+            MenuAction action = MenuAction::None;
+            if (pressed(VK_ESCAPE)) menu.back();
+            else {
+                if (pressed(VK_UP)) menu.move(-1);
+                if (pressed(VK_DOWN)) menu.move(1);
+                if (clicked) action = menu.click(clickX, clickY);
+                else if (pressed(VK_RETURN)) action = menu.activate();
+            }
+            if (action == MenuAction::Start) world.load(menu.chosenLevel, menu.endlessMode);
+            if (action == MenuAction::Start || action == MenuAction::Continue) paused = false;
+            if (action == MenuAction::Exit) running = false;
+            accumulator = 0;
+            pendingJump = false;
+        } else if (pressed(VK_ESCAPE)) {
+            // 第六步：游戏中返回菜单只切换页面，不复位角色、积分或机关计时。
+            menu.home();
+            accumulator = 0;
+            pendingJump = false;
+        } else {
+            // 第七步：处理暂停和死亡操作，重生与重开共用按钮/快捷键动作。
+            DeathAction action = world.dead && clicked ? deathScreenClick(clickX, clickY) : DeathAction::None;
+            if (pressed('P') && !world.dead && !world.won) { paused = !paused; pendingJump = false; }
+            if (pressed('R')) {
+                if (world.won || keys[VK_SHIFT]) action = DeathAction::Restart;
+                else if (world.dead) action = DeathAction::Respawn;
+                else world.die(L"你选择了结束本次挑战");
+            }
+            if (world.dead && pressed(VK_RETURN)) action = DeathAction::Respawn;
+            // 闯关结束后顺序进入下一关；最终关回主页面，无尽模式不会出现通关面板。
+            if (world.won && pressed(VK_RETURN)) {
+                if (world.chapter < 4) { world.load(world.chapter + 1); menu.chosenLevel = world.chapter; }
+                else menu.home();
+                accumulator = 0; pendingJump = false;
+            }
+            if (action != DeathAction::None) {
+                if (action == DeathAction::Restart) world.restart(); else world.respawn();
+                paused = false;
+                pendingJump = false;
+                accumulator = 0;
+            }
+            // 第八步：以 120 Hz 固定步长更新，设置中的帧率只影响绘图，不影响运动速度。
+            if ((pressed(VK_SPACE) || pressed('Z')) && !paused && !world.dead && action == DeathAction::None) pendingJump = true;
+            if (focused && !smokeTest && !paused && !world.dead && menu.page == Page::Playing) {
+                accumulator += frameTime;
+                while (accumulator >= FixedStep) {
+                    world.update({keys['A'] || keys[VK_LEFT], keys['D'] || keys[VK_RIGHT], pendingJump, keys['J']}, FixedStep);
+                    pendingJump = false;
+                    accumulator -= FixedStep;
+                }
+            } else { accumulator = 0; pendingJump = false; }
+        }
+        std::copy(std::begin(keys), std::end(keys), std::begin(previousKeys));
+        // 第九步：按页面绘制；切出窗口的提示只显示在进行中的游戏画面。
+        // 窗口设置生效时重建实际窗口，菜单、世界和当前设置仍保存在内存中。
+        // 缩放预览依次切换三档并回到中档，验证实际窗口重建而不仅是初始尺寸。
+        if (preview == Preview::Window && frames > 0) {
+            const int sequence[]{0, 1, 2, 0, 1, 1};
+            menu.settings.windowSize = sequence[std::min(frames, 5)];
+        }
+        if (appliedSize != menu.settings.windowSize) {
+            SetWorkingImage(); EndBatchDraw(); closegraph();
+            appliedSize = menu.settings.windowSize;
+            window = initgraph(widths[appliedSize], heights[appliedSize]);
+            if (!window) return 1;
+            SetWindowTextW(window, L"game | 极限试炼"); BeginBatchDraw();
+        }
+        if (preview == Preview::Window) {
+            RECT verifiedClient{}; GetClientRect(window, &verifiedClient);
+            if (verifiedClient.right != widths[appliedSize] || verifiedClient.bottom != heights[appliedSize]) {
+                std::cerr << "Window mismatch: requested=" << widths[appliedSize] << 'x' << heights[appliedSize]
+                    << " actual=" << verifiedClient.right << 'x' << verifiedClient.bottom << " frame=" << frames << '\n';
+                EndBatchDraw(); closegraph(); return 2;
+            }
+        }
+        SetWorkingImage(&canvas);
+        setbkmode(TRANSPARENT);
+        if (menu.page == Page::Playing) {
+            render();
+            if (!focused && !smokeTest && !paused && !world.won && !world.dead)
+                label(340, 280, L"点击游戏窗口继续", 26, RGB(255, 221, 132));
+        } else menu.render();
+        // 最后把逻辑画布缩放到实际窗口，所有页面与结算界面使用同一比例。
+        SetWorkingImage();
+        SetStretchBltMode(GetImageHDC(), COLORONCOLOR);
+        StretchBlt(GetImageHDC(), 0, 0, widths[appliedSize], heights[appliedSize], GetImageHDC(&canvas), 0, 0, ScreenWidth, ScreenHeight, SRCCOPY);
         FlushBatchDraw();
-        // 第十步：自动验证模式保存实际画面后退出；正常运行短暂让出 CPU。
-        if (smokeTest && ++frames >= 3) {
-            saveimage(preview == Preview::Map ? L"map-smoke-test.png" :
-                (spikePreview ? L"spike-smoke-test.png" : (deathPreview ? L"death-smoke-test.png" : L"smoke-test.png")));
+        // 第十步：截图验证保存三帧后的画面；正常运行按设置限制帧率。
+        if (smokeTest && ++frames >= (preview == Preview::Window ? 6 : 3)) {
+            const wchar_t* path = L"smoke-test.png";
+            switch (preview) {
+            case Preview::Home: path = L"menu-smoke-test.png"; break;
+            case Preview::Levels: path = L"levels-smoke-test.png"; break;
+            case Preview::Settings: path = L"settings-smoke-test.png"; break;
+            case Preview::Death: path = L"death-smoke-test.png"; break;
+            case Preview::Spikes: path = L"spike-smoke-test.png"; break;
+            case Preview::Map: path = L"map-smoke-test.png"; break;
+            case Preview::Traps: path = L"traps-smoke-test.png"; break;
+            case Preview::Modes: path = L"modes-smoke-test.png"; break;
+            case Preview::Window: path = L"window-smoke-test.png"; break;
+            case Preview::Bridge: path = L"bridge-smoke-test.png"; break;
+            case Preview::Enemies: path = L"enemies-smoke-test.png"; break;
+            case Preview::Lasers: path = L"lasers-smoke-test.png"; break;
+            case Preview::Boss: path = L"boss-smoke-test.png"; break;
+            case Preview::Endless: path = L"endless-smoke-test.png"; break;
+            default: break;
+            }
+            saveimage(path);
             break;
         }
-        Sleep(1);
+        std::this_thread::sleep_until(now + std::chrono::microseconds(1000000 / menu.settings.frameLimit));
     }
-    // 第十一步：主动退出时结束批量绘图并关闭窗口，避免重复关闭已销毁窗口。
+    // 第十一步：结束批量绘图并关闭仍然存在的窗口。
     if (IsWindow(window)) { EndBatchDraw(); closegraph(); }
     return 0;
 }
-
 void Game::render() const {
     // 绘制步骤一：计算世界到屏幕的水平变换；背景、HUD 和结算界面不参与滚动。
     const float camera = world.cameraX();
     const auto screenRect = [camera](Rect r) { r.x -= camera; return r; };
-    // 绘制步骤二：清屏并恢复固定的深色网格背景。
-    setbkcolor(RGB(15, 22, 38));
-    cleardevice();
-    setlinecolor(RGB(25, 36, 54));
-    for (int x = 0; x < ScreenWidth; x += 40) line(x, 125, x, ScreenHeight);
-    for (int y = 150; y < ScreenHeight; y += 40) line(0, y, ScreenWidth, y);
+    // 绘制步骤二：各关使用独立的背景主题，装饰不参与碰撞。
+    drawBackground(world);
     // 绘制步骤三：显示固定顶部面板，包括操作、死亡数、时间、存档与积分。
     box({0, 0, 960, 110}, RGB(22, 32, 51));
-    label(28, 16, L"GAME / 初始试炼", 28, RGB(239, 245, 255));
-    label(28, 56, L"A D / ← → 移动    空格 / Z 跳跃、二段跳", 18, RGB(153, 178, 202));
-    label(28, 81, L"R 重生    Shift+R 重开    P 暂停    Esc 退出", 16, RGB(153, 178, 202));
+    label(28, 16, L"GAME / " + world.level.name, 28, RGB(239, 245, 255));
+    if (menu.settings.showHints) {
+        // 操作提示可以在设置页关闭，标题和关键数值仍保留。
+        label(28, 56, L"A D / ← → 移动    空格 / Z 二段跳    J 射击", 18, RGB(153, 178, 202));
+        label(28, 81, L"R 重生    Shift+R 重开    P 暂停    Esc 主页面", 16, RGB(153, 178, 202));
+    }
     label(650, 22, L"死亡 " + std::to_wstring(world.deaths) + L"    时间 " +
         std::to_wstring(static_cast<int>(world.elapsed)) + L"s", 21, RGB(239, 245, 255));
-    label(650, 60, world.checkpointActive ? L"存档点已激活" : L"前往绿色旗帜存档", 18, RGB(92, 221, 167));
+    label(650, 60, world.endless ? L"距离 " + std::to_wstring(static_cast<int>(world.player.body.x / 10)) + L" m" :
+        (world.checkpointActive ? L"存档点已激活" : L"前往绿色旗帜存档"), 18, RGB(92, 221, 167));
     label(650, 83, L"积分 " + std::to_wstring(world.scoring.total()) + L"    障碍 " +
         std::to_wstring(world.scoring.cleared()), 18, RGB(255, 230, 90));
     // 绘制步骤四：所有平台转换到屏幕坐标，顶部用亮边区分可站立表面。
-    for (const auto& tile : world.level.platforms) {
-        box(screenRect(tile), RGB(52, 71, 94));
-        box(screenRect({tile.x, tile.y, tile.w, 4}), RGB(127, 165, 194));
+    for (std::size_t i = 0; i < world.level.platforms.size(); ++i) {
+        if (!world.platformSolid(i)) continue;
+        const auto& tile = world.level.platforms[i];
+        bool fragile = false, triggered = false;
+        for (const auto& f : world.level.fragile) if (f.index == i) { fragile = true; triggered = f.touched; }
+        box(screenRect(tile), fragile ? RGB(128, 88, 67) : RGB(52, 71, 94));
+        box(screenRect({tile.x, tile.y, tile.w, 4}), triggered ? RGB(255, 110, 75) : RGB(127, 165, 194));
+        if (fragile) {
+            const auto r = screenRect(tile);
+            setlinecolor(RGB(49, 34, 38));
+            for (int x = static_cast<int>(r.x) + 20; x < r.right(); x += 30)
+                line(x, static_cast<int>(r.y), x - 8, static_cast<int>(r.bottom()));
+        }
     }
     // 绘制步骤五：使用尖刺活动模块的实时外框画三角形，伸长时变为更鲜明的红色。
     for (std::size_t i = 0; i < world.level.spikes.size(); ++i) {
@@ -169,26 +278,41 @@ void Game::render() const {
         setfillcolor(spike.h > world.level.spikes[i].h + 1 ? RGB(255, 64, 82) : RGB(255, 105, 128));
         solidpolygon(points, 3);
     }
-    // 绘制步骤六：存档旗帜和终点随地图滚动，旗帜颜色反映是否已激活。
+    // 绘制步骤六：上排尖刺向下绘制，顶部支架固定，夹击陷阱使用联动后的高度。
+    for (const auto& trap : world.level.overheadTraps) {
+        const auto r = screenRect(overheadBounds(trap, world));
+        box({r.x, r.y - 10, r.w, 10}, RGB(52, 71, 94));
+        POINT points[3]{{static_cast<LONG>(r.x), static_cast<LONG>(r.y)},
+            {static_cast<LONG>(r.right()), static_cast<LONG>(r.y)},
+            {static_cast<LONG>(r.x + r.w / 2), static_cast<LONG>(r.bottom())}};
+        setfillcolor(trap.style == TrapStyle::Crusher ? RGB(255, 154, 90) : RGB(186, 136, 255));
+        solidpolygon(points, 3);
+    }
+    // 绘制步骤七：存档旗帜和终点随地图滚动，旗帜颜色反映是否已激活。
     const auto flag = screenRect(world.level.checkpoint);
     box({flag.x, flag.y, 3, flag.h}, RGB(177, 207, 215));
     box({flag.x + 3, flag.y, 24, 17}, world.checkpointActive ? RGB(107, 255, 175) : RGB(55, 151, 115));
     const auto goal = screenRect(world.level.goal);
-    box(goal, RGB(234, 183, 80));
+    box(goal, world.level.boss && world.bossHealth > 0 ? RGB(130, 80, 80) : RGB(234, 183, 80));
     box({goal.x + 5, goal.y + 5, 22, 47}, RGB(76, 61, 42));
     label(static_cast<int>(goal.x) - 4, static_cast<int>(goal.y) - 30, L"终点", 18, RGB(255, 221, 132));
+    drawCombatScene(world);
     // 绘制步骤七：画角色主体、面罩和眼睛，随后显示底部玩法提示。
     const auto p = screenRect(world.player.body);
-    box(p, RGB(95, 213, 255));
+    const COLORREF playerColors[]{RGB(95, 213, 255), RGB(92, 221, 167), RGB(255, 206, 100)};
+    box(p, playerColors[menu.settings.playerPalette]);
     box({p.x + 4, p.y + 5, 16, 8}, RGB(224, 247, 255));
     box({p.x + 15, p.y + 7, 3, 4}, RGB(20, 47, 69));
-    label(32, 590, L"引诱成组尖刺后等待缩回，利用二段跳继续向右探索。", 18, RGB(153, 178, 202));
+    if (menu.settings.showHints)
+        label(32, 590, world.chapter == 1 && !world.endless ? L"裂纹桥面踩踏后会坍塌，及时起跳；避开移动锯轮。" :
+            (world.chapter == 3 && !world.endless ? L"激光亮起时致命，虚线时可通行。观察节奏再出发。" :
+            L"J 连续射击，踩击敌人；引诱尖刺缩回后再通过。"), 18, RGB(220, 231, 237));
     // 绘制步骤八：死亡结算优先覆盖整个场景，否则显示暂停或通关面板。
     if (world.dead) { drawDeathScreen(world); return; }
     if (paused || world.won) {
         box({235, 190, 490, 140}, RGB(30, 45, 67));
-        label(320, 215, world.won ? L"通关！基础试炼完成" : L"游戏已暂停", 28, RGB(255, 221, 132));
-        label(320, 270, world.won ? L"得分 " + std::to_wstring(world.scoring.total()) + L" · 按 R 再玩一次" : L"按 P 继续", 20, RGB(239, 245, 255));
+        label(285, 215, world.won ? (world.chapter == 4 ? L"恭喜！五章挑战完成" : L"本关挑战完成！") : L"游戏已暂停", 28, RGB(255, 221, 132));
+        label(285, 270, world.won ? (world.chapter < 4 ? L"Enter 下一关 / R 重玩 / Esc 菜单" : L"Enter 返回主页面 / R 重玩") : L"按 P 继续 / Esc 主页面", 19, RGB(239, 245, 255));
     }
 }
 }
