@@ -4,6 +4,13 @@
 int main(int argc, char* argv[]) {
     if (argc > 1 && std::string_view(argv[1]) == "--self-test") return game::runSelfTests();
     game::Game application;
-    const bool deathPreview = argc > 1 && std::string_view(argv[1]) == "--death-smoke-test";
-    return application.run(deathPreview || (argc > 1 && std::string_view(argv[1]) == "--smoke-test"), deathPreview);
+    game::Preview preview = game::Preview::None;
+    if (argc > 1) {
+        const std::string_view option(argv[1]);
+        if (option == "--smoke-test") preview = game::Preview::Scene;
+        if (option == "--death-smoke-test") preview = game::Preview::Death;
+        if (option == "--spike-smoke-test") preview = game::Preview::Spikes;
+        if (option == "--map-smoke-test") preview = game::Preview::Map;
+    }
+    return application.run(preview);
 }

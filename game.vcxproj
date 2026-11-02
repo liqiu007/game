@@ -50,6 +50,7 @@
   <ItemGroup>
     <ClInclude Include="src\World.h" /><ClInclude Include="src\Game.h" />
     <ClInclude Include="src\system.h" /><ClCompile Include="src\system.cpp" />
+    <ClInclude Include="src\SpikeActivity.h" /><ClCompile Include="src\SpikeActivity.cpp" />
     <ClCompile Include="src\main.cpp" /><ClCompile Include="src\World.cpp" />
     <ClCompile Include="src\Game.cpp" /><ClCompile Include="tests\WorldTests.cpp" />
   </ItemGroup>

@@ -2,9 +2,10 @@
 #include "World.h"
 
 namespace game {
+enum class Preview { None, Scene, Death, Spikes, Map };
 class Game {
 public:
-    int run(bool smokeTest = false, bool deathPreview = false);
+    int run(Preview preview = Preview::None);
 private:
     World world;
     bool paused = false;

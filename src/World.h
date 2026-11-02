@@ -1,5 +1,6 @@
 #pragma once
 #include "system.h"
+#include "SpikeActivity.h"
 #include <string>
 #include <vector>
 
@@ -30,6 +31,7 @@ struct Level {
     float spawnX, spawnY;
     std::vector<int> spikeScores;
     std::vector<int> platformScores;
+    float width = 2240;
     static Level tutorial();
 };
 
@@ -44,6 +46,7 @@ public:
     bool dead = false;
     std::wstring deathReason;
     ScoreSystem scoring;
+    SpikeActivity spikeActivity = SpikeActivity::tutorial(level.spikes);
     float elapsed = 0;
 
     World();
@@ -51,6 +54,7 @@ public:
     void respawn();
     void die(const wchar_t* reason);
     void restart();
+    float cameraX() const;
 };
 int runSelfTests();
 }

@@ -33,3 +33,5 @@ out/
 # Local runtime verification
 smoke-test.png
 death-smoke-test.png
+spike-smoke-test.png
+map-smoke-test.png
