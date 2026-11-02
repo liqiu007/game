@@ -1,6 +1,7 @@
 // 积分与结算实现：发放一次性奖励、冻结死亡分数，并绘制可点击的结算界面。
 #include "system.h"
 #include "World.h"
+#include "DisplayLayout.h"
 // 仅在第三方 EasyX 头文件范围内关闭匿名结构体警告，不影响项目自身检查。
 #pragma warning(push)
 #pragma warning(disable: 4201)
@@ -120,7 +121,10 @@ void drawDeathScreen(const World& world) {
     // 窗口可缩放，按钮布局仍使用 960×640 逻辑坐标。
     RECT client{};
     GetClientRect(GetHWnd(), &client);
-    if (client.right > 0 && client.bottom > 0) { mouse.x = mouse.x * ScreenWidth / client.right; mouse.y = mouse.y * ScreenHeight / client.bottom; }
+    int logicalX = -1, logicalY = -1;
+    if (client.right > 0 && client.bottom > 0)
+        fitViewport(client.right, client.bottom).mapPoint(mouse.x, mouse.y, logicalX, logicalY);
+    mouse.x = logicalX; mouse.y = logicalY;
     button(RespawnButton, L"重生  [Enter / R]", mouse);
     button(RestartButton, L"重新开始  [Shift + R]", mouse);
     centered(491, L"重生保留积分与存档点 · 重新开始清空本局", 17, RGB(220, 197, 197));

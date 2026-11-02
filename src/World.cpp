@@ -81,6 +81,8 @@ void World::update(const Input& input, float dt) {
     }
     // 第三步：累积重力并限制下落速度，控制每个固定步长的移动距离。
     player.vy = std::min(player.vy + Gravity * dt, 800.0f);
+    // S 在空中转为快速下落；不穿透地面，W 与 S 同时按下时优先起跳。
+    if (input.fastFall && !player.grounded && !input.jump) player.vy = std::max(player.vy, 600.0f);
 
     // 第四步：先水平移动并推出相交平台，再限制在地图范围内。
     player.body.x += player.vx * dt;

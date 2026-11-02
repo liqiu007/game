@@ -229,7 +229,7 @@ int runSelfTests() {
         menu.activate();
         check(menu.settings.frameLimit == 60, "Frame limit toggle must switch to 60 FPS");
         menu.selected = 3; menu.activate();
-        check(menu.settings.windowSize == 1, "Window size must switch to 1200x800");
+        check(menu.settings.windowSize == 0, "Display mode must switch from default fullscreen to windowed");
         menu.selected = 4;
         menu.activate();
         check(menu.page == Page::Home && menu.hasSession, "Leaving settings must retain session");

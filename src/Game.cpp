@@ -2,6 +2,8 @@
 #include "Game.h"
 #include "SpecialTraps.h"
 #include "SceneRenderer.h"
+#include "Controls.h"
+#include "DisplayLayout.h"
 #pragma warning(push)
 #pragma warning(disable: 4201) // EasyX 消息结构使用匿名联合，仅在此头文件内忽略警告。
 #include <graphics.h>
@@ -34,16 +36,21 @@ int Game::run(Preview preview) {
     // 第一步：创建窗口。正常启动停留主页面，截图模式直接进入指定页面或场景。
     const bool smokeTest = preview != Preview::None;
     // 使用固定逻辑画布，窗口大小只影响最终缩放，不改变物理坐标。
-    int widths[]{960, 1200, 1440}, heights[]{640, 800, 960};
+    int widths[]{960, 1200, 1440, GetSystemMetrics(SM_CXSCREEN)};
+    int heights[]{640, 800, 960, GetSystemMetrics(SM_CYSCREEN)};
     int appliedSize = menu.settings.windowSize;
     HWND window = initgraph(widths[appliedSize], heights[appliedSize]);
     IMAGE canvas(ScreenWidth, ScreenHeight);
     if (!window) return 1;
     // 大尺寸若超过当前显示器工作区，保持 3:2 比例缩小，防止系统单独截掉高度。
     MONITORINFO monitor{sizeof(MONITORINFO)};
+    monitor.rcMonitor = {0, 0, widths[3], heights[3]};
     RECT outer{}, client{};
     GetWindowRect(window, &outer); GetClientRect(window, &client);
     if (GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST), &monitor)) {
+        // 全屏使用整块显示器区域；窗口档仍按不遮挡任务栏的工作区适配。
+        widths[3] = monitor.rcMonitor.right - monitor.rcMonitor.left;
+        heights[3] = monitor.rcMonitor.bottom - monitor.rcMonitor.top;
         const int maxW = static_cast<int>(monitor.rcWork.right - monitor.rcWork.left - (outer.right - outer.left - client.right));
         const int maxH = static_cast<int>(monitor.rcWork.bottom - monitor.rcWork.top - (outer.bottom - outer.top - client.bottom));
         for (int i = 0; i < 3; ++i) {
@@ -56,6 +63,16 @@ int Game::run(Preview preview) {
             if (!window) return 1;
         }
     }
+    // 无边框全屏不修改系统分辨率，覆盖当前显示器，仍可正常 Alt+Tab 切换应用。
+    const auto applyDisplayStyle = [&]() {
+        if (appliedSize != 3) return;
+        SetWindowLongPtrW(window, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+        SetWindowLongPtrW(window, GWL_EXSTYLE, GetWindowLongPtrW(window, GWL_EXSTYLE) & ~(WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE));
+        SetWindowPos(window, HWND_TOP, monitor.rcMonitor.left, monitor.rcMonitor.top,
+            widths[3], heights[3], SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+    };
+    applyDisplayStyle();
+    Viewport viewport = fitViewport(widths[appliedSize], heights[appliedSize]);
     SetWindowTextW(window, L"game | 极限试炼");
     setbkmode(TRANSPARENT);
     BeginBatchDraw();
@@ -102,9 +119,12 @@ int Game::run(Preview preview) {
         previous = now;
         const bool focused = GetForegroundWindow() == window;
         bool keys[256]{};
-        for (int key : {VK_ESCAPE, VK_RETURN, VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT, VK_SPACE, VK_SHIFT, 65, 68, 74, 80, 82, 90})
+        for (int key : {VK_ESCAPE, VK_RETURN, VK_UP, VK_DOWN, VK_SHIFT, VK_F11, 65, 68, 74, 80, 82, 83, 87})
             keys[key] = focused && !smokeTest && down(key);
         const auto pressed = [&](int key) { return keys[key] && !previousKeys[key]; };
+        const Input controls = mapControls(keys, previousKeys);
+        // F11 可在任何页面切换显示模式，不重置世界进度。
+        if (pressed(VK_F11)) menu.settings.windowSize = menu.settings.windowSize == 3 ? 0 : 3;
         // 第四步：收集鼠标移动和点击，菜单按钮和死亡按钮根据当前页面分别处理。
         bool clicked = false;
         int clickX = 0, clickY = 0;
@@ -112,7 +132,8 @@ int Game::run(Preview preview) {
         while (peekmessage(&message)) {
             if (!focused || smokeTest) continue;
             if (message.message == WM_MOUSEMOVE || message.message == WM_LBUTTONDOWN) {
-                const int x = message.x * ScreenWidth / widths[appliedSize], y = message.y * ScreenHeight / heights[appliedSize];
+                int x = -1, y = -1;
+                if (!viewport.mapPoint(message.x, message.y, x, y)) continue;
                 if (message.message == WM_MOUSEMOVE && menu.page != Page::Playing) menu.hover(x, y);
                 if (message.message == WM_LBUTTONDOWN) { clicked = true; clickX = x; clickY = y; }
             }
@@ -120,12 +141,12 @@ int Game::run(Preview preview) {
         if (menu.page != Page::Playing) {
             // 第五步：菜单期间冻结模拟。新游戏清空旧进度，继续游戏只恢复页面。
             MenuAction action = MenuAction::None;
-            if (pressed(VK_ESCAPE)) menu.back();
+            if (pressed(VK_ESCAPE) || pressed('A')) menu.back();
             else {
-                if (pressed(VK_UP)) menu.move(-1);
-                if (pressed(VK_DOWN)) menu.move(1);
+                if (pressed('W') || pressed(VK_UP)) menu.move(-1);
+                if (pressed('S') || pressed(VK_DOWN)) menu.move(1);
                 if (clicked) action = menu.click(clickX, clickY);
-                else if (pressed(VK_RETURN)) action = menu.activate();
+                else if (pressed(VK_RETURN) || pressed('D')) action = menu.activate();
             }
             if (action == MenuAction::Start) world.load(menu.chosenLevel, menu.endlessMode);
             if (action == MenuAction::Start || action == MenuAction::Continue) paused = false;
@@ -160,11 +181,11 @@ int Game::run(Preview preview) {
                 accumulator = 0;
             }
             // 第八步：以 120 Hz 固定步长更新，设置中的帧率只影响绘图，不影响运动速度。
-            if ((pressed(VK_SPACE) || pressed('Z')) && !paused && !world.dead && action == DeathAction::None) pendingJump = true;
+            if (controls.jump && !paused && !world.dead && action == DeathAction::None) pendingJump = true;
             if (focused && !smokeTest && !paused && !world.dead && menu.page == Page::Playing) {
                 accumulator += frameTime;
                 while (accumulator >= FixedStep) {
-                    world.update({keys['A'] || keys[VK_LEFT], keys['D'] || keys[VK_RIGHT], pendingJump, keys['J']}, FixedStep);
+                    world.update({controls.left, controls.right, pendingJump, controls.shoot, controls.fastFall}, FixedStep);
                     pendingJump = false;
                     accumulator -= FixedStep;
                 }
@@ -173,9 +194,9 @@ int Game::run(Preview preview) {
         std::copy(std::begin(keys), std::end(keys), std::begin(previousKeys));
         // 第九步：按页面绘制；切出窗口的提示只显示在进行中的游戏画面。
         // 窗口设置生效时重建实际窗口，菜单、世界和当前设置仍保存在内存中。
-        // 缩放预览依次切换三档并回到中档，验证实际窗口重建而不仅是初始尺寸。
+        // 显示预览从全屏切换三种窗口档，再回到全屏，检查重建后的尺寸和样式。
         if (preview == Preview::Window && frames > 0) {
-            const int sequence[]{0, 1, 2, 0, 1, 1};
+            const int sequence[]{3, 0, 1, 2, 3, 3};
             menu.settings.windowSize = sequence[std::min(frames, 5)];
         }
         if (appliedSize != menu.settings.windowSize) {
@@ -183,6 +204,8 @@ int Game::run(Preview preview) {
             appliedSize = menu.settings.windowSize;
             window = initgraph(widths[appliedSize], heights[appliedSize]);
             if (!window) return 1;
+            applyDisplayStyle();
+            viewport = fitViewport(widths[appliedSize], heights[appliedSize]);
             SetWindowTextW(window, L"game | 极限试炼"); BeginBatchDraw();
         }
         if (preview == Preview::Window) {
@@ -192,6 +215,14 @@ int Game::run(Preview preview) {
                     << " actual=" << verifiedClient.right << 'x' << verifiedClient.bottom << " frame=" << frames << '\n';
                 EndBatchDraw(); closegraph(); return 2;
             }
+            // 全屏必须精确覆盖显示器且没有标题栏，不能只把窗口放大。
+            if (appliedSize == 3) {
+                RECT verifiedOuter{}; GetWindowRect(window, &verifiedOuter);
+                if (!EqualRect(&verifiedOuter, &monitor.rcMonitor) || (GetWindowLongPtrW(window, GWL_STYLE) & WS_CAPTION)) {
+                    std::cerr << "Fullscreen bounds/style verification failed\n";
+                    EndBatchDraw(); closegraph(); return 3;
+                }
+            }
         }
         SetWorkingImage(&canvas);
         setbkmode(TRANSPARENT);
@@ -200,10 +231,12 @@ int Game::run(Preview preview) {
             if (!focused && !smokeTest && !paused && !world.won && !world.dead)
                 label(340, 280, L"点击游戏窗口继续", 26, RGB(255, 221, 132));
         } else menu.render();
-        // 最后把逻辑画布缩放到实际窗口，所有页面与结算界面使用同一比例。
+        // 居中等比显示逻辑画布；两侧或上下留边，人物和按钮不会被拉伸。
         SetWorkingImage();
+        setbkcolor(RGB(7, 11, 18)); cleardevice();
         SetStretchBltMode(GetImageHDC(), COLORONCOLOR);
-        StretchBlt(GetImageHDC(), 0, 0, widths[appliedSize], heights[appliedSize], GetImageHDC(&canvas), 0, 0, ScreenWidth, ScreenHeight, SRCCOPY);
+        StretchBlt(GetImageHDC(), viewport.x, viewport.y, viewport.width, viewport.height,
+            GetImageHDC(&canvas), 0, 0, ScreenWidth, ScreenHeight, SRCCOPY);
         FlushBatchDraw();
         // 第十步：截图验证保存三帧后的画面；正常运行按设置限制帧率。
         if (smokeTest && ++frames >= (preview == Preview::Window ? 6 : 3)) {
@@ -245,8 +278,8 @@ void Game::render() const {
     label(28, 16, L"GAME / " + world.level.name, 28, RGB(239, 245, 255));
     if (menu.settings.showHints) {
         // 操作提示可以在设置页关闭，标题和关键数值仍保留。
-        label(28, 56, L"A D / ← → 移动    空格 / Z 二段跳    J 射击", 18, RGB(153, 178, 202));
-        label(28, 81, L"R 重生    Shift+R 重开    P 暂停    Esc 主页面", 16, RGB(153, 178, 202));
+        label(28, 56, L"A / D 移动    W 二段跳    S 快速下落    J 射击", 18, RGB(153, 178, 202));
+        label(28, 81, L"R 重生  Shift+R 重开  P 暂停  Esc 菜单  F11 全屏", 16, RGB(153, 178, 202));
     }
     label(650, 22, L"死亡 " + std::to_wstring(world.deaths) + L"    时间 " +
         std::to_wstring(static_cast<int>(world.elapsed)) + L"s", 21, RGB(239, 245, 255));

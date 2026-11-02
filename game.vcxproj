@@ -49,6 +49,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="src\World.h" /><ClInclude Include="src\Game.h" />
+    <ClInclude Include="src\Controls.h" /><ClInclude Include="src\DisplayLayout.h" />
     <ClInclude Include="src\system.h" /><ClCompile Include="src\system.cpp" />
     <ClInclude Include="src\SpikeActivity.h" /><ClCompile Include="src\SpikeActivity.cpp" />
     <ClInclude Include="src\Menu.h" /><ClCompile Include="src\Menu.cpp" />

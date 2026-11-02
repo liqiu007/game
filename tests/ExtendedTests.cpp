@@ -2,7 +2,10 @@
 #include "World.h"
 #include "Menu.h"
 #include "Combat.h"
+#include "Controls.h"
+#include "DisplayLayout.h"
 #include <stdexcept>
+#include <utility>
 
 namespace game {
 namespace {
@@ -26,6 +29,39 @@ bool travelTo(World& world, float target) {
 }
 }
 void runExtendedTests() {
+    // 输入回归：W 单次起跳、A/D 左右、S 快落，旧方向键和空格不再操纵角色。
+    bool keys[256]{}, previous[256]{};
+    keys['W'] = keys['A'] = keys['S'] = true;
+    auto controls = mapControls(keys, previous);
+    require(controls.jump && controls.left && !controls.right && controls.fastFall, "WASD mapping must match platform controls");
+    previous['W'] = true;
+    require(!mapControls(keys, previous).jump, "Holding W must not repeatedly jump");
+    keys['W'] = keys['A'] = keys['S'] = false;
+    keys['D'] = keys['J'] = true;
+    require(mapControls(keys, previous).right && mapControls(keys, previous).shoot, "D and J must support held movement and shooting");
+    keys['D'] = keys['J'] = false;
+    keys[32] = keys[37] = keys[39] = keys['Z'] = true;
+    controls = mapControls(keys, previous);
+    require(!controls.left && !controls.right && !controls.jump, "Legacy gameplay bindings must not trigger movement or jump");
+    World fall;
+    fall.update({false, false, true}, FixedStep);
+    steps(fall, 10); // 先离开地面，再验证空中快落速度，避免同一步已经落地归零。
+    fall.update({false, false, false, false, true}, FixedStep);
+    require(fall.player.vy >= 600, "S must start a fast downward movement in the air");
+    steps(fall, 60, {false, false, false, false, true});
+    require(fall.player.grounded && fall.player.body.bottom() == 550, "Fast fall must still collide with platforms");
+    // 显示回归：宽屏和竖屏保持比例，黑边不触发点击，菜单与死亡按钮坐标正确。
+    for (const auto& size : {std::pair<int,int>{1920,1080}, {1600,900}, {900,1600}, {960,640}}) {
+        const auto viewport = fitViewport(size.first, size.second);
+        require(viewport.width * 2 == viewport.height * 3, "Viewport must maintain 3:2 aspect ratio");
+        int x = -1, y = -1;
+        require(viewport.mapPoint(viewport.x + viewport.width / 2, viewport.y + viewport.height / 2, x, y) && x == 480 && y == 320,
+            "Fullscreen center must map to logical center");
+        require(!viewport.mapPoint(viewport.x - 1, viewport.y, x, y), "Letterbox must not trigger buttons");
+        require(viewport.mapPoint(viewport.x + viewport.width * 400 / 960, viewport.y + viewport.height * 360 / 640, x, y) &&
+            deathScreenClick(x, y) == DeathAction::Respawn, "Scaled death button must remain clickable");
+    }
+    require(Menu{}.settings.windowSize == 3, "Game must default to fullscreen");
     // 第一组：五关名称、背景索引和专属机关完整，无尽入口不经过关卡选择。
     const wchar_t* names[]{L"小试牛刀", L"断桥危机", L"敌人来袭", L"小心激光", L"终章：BOSS战"};
     for (int i = 0; i < 5; ++i) {

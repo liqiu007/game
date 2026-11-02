@@ -54,8 +54,8 @@ std::wstring Menu::itemText(int index) const {
         }
         if (index == 2) return L"帧率上限   " + std::to_wstring(settings.frameLimit) + L" FPS";
         if (index == 3) {
-            const wchar_t* sizes[]{L"960 × 640", L"1200 × 800", L"1440 × 960"};
-            return std::wstring(L"窗口大小   ") + sizes[settings.windowSize];
+            const wchar_t* sizes[]{L"960 × 640", L"1200 × 800", L"1440 × 960", L"全屏（无边框）"};
+            return std::wstring(L"显示模式   ") + sizes[settings.windowSize];
         }
         return L"返回主页面";
     }
@@ -111,7 +111,7 @@ MenuAction Menu::activate() {
         if (selected == 0) settings.showHints = !settings.showHints;
         else if (selected == 1) settings.playerPalette = (settings.playerPalette + 1) % 3;
         else if (selected == 2) settings.frameLimit = settings.frameLimit == 120 ? 60 : 120;
-        else if (selected == 3) settings.windowSize = (settings.windowSize + 1) % 3;
+        else if (selected == 3) settings.windowSize = (settings.windowSize + 1) % 4;
         else home();
     }
     return MenuAction::None;
@@ -159,7 +159,7 @@ void Menu::render() const {
     text(520, 475, L"成组伸缩 / 倒挂尖刺 / 上下夹击", 17, RGB(255, 157, 170));
     text(520, 508, L"观察机关，找准时机，再跳一次。", 16, RGB(153, 178, 202));
     // 绘制步骤四：给出导航规则和继续游戏的实际存续范围。
-    text(64, 591, L"鼠标选择  ·  ↑ ↓ 切换  ·  Enter 确认  ·  Esc 返回", 16, RGB(153, 178, 202));
-    text(585, 591, L"游戏中 Esc 回主页面，保留本次进度", 15, RGB(153, 178, 202));
+    text(64, 591, L"W / S 选择 · D / Enter 确认 · A / Esc 返回", 16, RGB(153, 178, 202));
+    text(585, 591, L"Esc 回主页面 · F11 切换全屏", 15, RGB(153, 178, 202));
 }
 }

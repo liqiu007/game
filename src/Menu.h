@@ -10,7 +10,8 @@ struct GameSettings {
     bool showHints = true;
     int playerPalette = 0;
     int frameLimit = 120;
-    int windowSize = 0;
+    // 第四档为默认无边框全屏，前三档仍可从设置或 F11 切回窗口。
+    int windowSize = 3;
 };
 class Menu {
 public:

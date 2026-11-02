@@ -21,7 +21,7 @@ struct Rect {
 bool overlaps(const Rect& a, const Rect& b);
 
 // 移动是持续状态；jump 由主循环转换为单次按下事件。
-struct Input { bool left = false, right = false, jump = false, shoot = false; };
+struct Input { bool left = false, right = false, jump = false, shoot = false, fastFall = false; };
 // 各类机关的数据与运行状态分开保存，重生时恢复初始状态。
 struct FragilePlatform { std::size_t index; float timer = 0.65f; bool touched = false, collapsed = false; };
 struct Enemy { Rect body; float left, right, speed = 65; int direction = 1; bool alive = true; };
