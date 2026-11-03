@@ -39,7 +39,7 @@ bool down(int key) { return (GetAsyncKeyState(key) & 0x8000) != 0; }
 int Game::run(Preview preview) {
     // 第一步：创建窗口。正常启动停留主页面，截图模式直接进入指定页面或场景。
     const bool smokeTest = preview != Preview::None;
-    if (!smokeTest) account.load();
+    // 昵称登录在图形窗口创建后执行。
     int pendingCoins = 0;
     // 正常启动使用时间种子；自动回归和预览保持固定种子，便于复现随机陷阱。
     if (!smokeTest) world = World(static_cast<std::uint32_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
@@ -84,6 +84,18 @@ int Game::run(Preview preview) {
     SetWindowTextW(window, L"game | 极限试炼");
     setbkmode(TRANSPARENT);
     BeginBatchDraw();
+    if (!smokeTest) {
+        // 登录不可跳过，取消退出；空白昵称和不可读存档提示后重新输入。
+        wchar_t name[21]{};
+        while (true) {
+            if (!InputBox(name, 21, L"输入昵称（1–20 字），无需密码。同昵称读取同一存档。", L"玩家登录", L"", 520, 200, false)) {
+                EndBatchDraw(); closegraph(); return 0;
+            }
+            if (account.login(name)) break;
+            MessageBoxW(window, L"昵称不能为空，或存档无法读取/写入，请重试。", L"登录未完成", MB_OK);
+        }
+    }
+    bool progressSaved = false;
     if (smokeTest) {
         world.load(0);
         menu.page = preview == Preview::Home ? Page::Home :
@@ -147,7 +159,7 @@ int Game::run(Preview preview) {
     int frames = 0;
     while (running && IsWindow(window)) {
         const bool wasDead = world.dead;
-        if (!world.won) victoryAge = 0;
+        if (!world.won) { victoryAge = 0; progressSaved = false; }
         const auto now = Clock::now();
         const double frameTime = std::min(std::chrono::duration<double>(now - previous).count(), 0.1);
         previous = now;
@@ -208,7 +220,7 @@ int Game::run(Preview preview) {
             if (victory == VictoryAction::Home) { menu.home(); accumulator = 0; pendingJump = false; }
             // 闯关结束后顺序进入下一关；最终关回主页面，无尽模式不会出现通关面板。
             if (world.won && (pressed(VK_RETURN) || victory == VictoryAction::Next)) {
-                if (world.chapter < 4) { world.load(world.chapter + 1); menu.chosenLevel = world.chapter; }
+                if (world.chapter < 4 && world.chapter + 1 < account.unlocked) { world.load(world.chapter + 1); menu.chosenLevel = world.chapter; }
                 else menu.home();
                 accumulator = 0; pendingJump = false;
             }
@@ -233,6 +245,8 @@ int Game::run(Preview preview) {
                 }
             } else { accumulator = 0; pendingJump = false; }
         }
+        if (!smokeTest && world.won && !world.endless && !progressSaved)
+            progressSaved = account.complete(world.chapter, evaluateStars(world).count, world.scoring.total());
         if (world.won && menu.page == Page::Playing && (focused || smokeTest)) victoryAge += static_cast<float>(frameTime);
         if (smokeTest) victoryAge = 3;
         // 仅真实游玩入账，保存失败保留待存金币并重试。

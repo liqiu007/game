@@ -32,7 +32,7 @@ int Menu::itemCount() const {
     return page == Page::Shop ? 3 : page == Page::Home ? 6 : (page == Page::Levels ? 6 : (page == Page::Settings ? 5 : (page == Page::Modes ? 3 : 0)));
 }
 bool Menu::enabled(int index) const {
-    return index >= 0 && index < itemCount() && !(page == Page::Home && index == 1 && !hasSession);
+    return index >= 0 && index < itemCount() && !(page == Page::Levels && index < 5 && index >= account.unlocked) && !(page == Page::Home && index == 1 && !hasSession);
 }
 std::wstring Menu::itemText(int index) const {
     // 为每种页面生成实际状态文字；设置按钮直接显示当前值。
@@ -136,7 +136,7 @@ void Menu::render() const {
     setlinecolor(RGB(25, 36, 54));
     for (int x = 0; x < 960; x += 40) line(x, 0, x, 640);
     for (int y = 0; y < 640; y += 40) line(0, y, 960, y);
-    text(64, 42, L"GAME / I WANNA", 17, RGB(95, 213, 255));
+    text(64, 42, L"GAME / " + (account.nickname.empty() ? L"I WANNA" : account.nickname) + L"    金币 " + std::to_wstring(account.coins), 17, RGB(95, 213, 255));
     const wchar_t* title = page == Page::Shop ? L"游戏商店" : page == Page::Home ? L"极限试炼" : (page == Page::Levels ? L"闯关 / 选择关卡" : (page == Page::Modes ? L"游戏模式" : L"游戏设置"));
     text(60, 86, title, 52, RGB(239, 245, 255));
     text(64, 160, page == Page::Home ? L"每一次重来，都离终点更近。" :
@@ -152,6 +152,12 @@ void Menu::render() const {
         rectangle(ButtonX, y, ButtonX + ButtonWidth, y + ButtonHeight);
         if (focused) fill(ButtonX, y, ButtonX + 4, y + ButtonHeight, RGB(95, 213, 255));
         text(ButtonX + 22, y + 10, itemText(i), 23, active ? RGB(239, 245, 255) : RGB(89, 104, 122));
+        if (page == Page::Levels && i < 5 && i >= account.unlocked) {
+            // 用几何线条画锁，不依赖字体是否包含锁字符。
+            setlinecolor(RGB(150, 160, 175)); setfillcolor(RGB(100, 110, 125));
+            arc(ButtonX + 307, y + 8, ButtonX + 327, y + 29, 0, 3.14159265);
+            solidrectangle(ButtonX + 303, y + 21, ButtonX + 331, y + 38);
+        }
         if (page == Page::Home && i == 1 && !hasSession) text(ButtonX + 205, y + 15, L"暂无本次进度", 14, RGB(89, 104, 122));
     }
 

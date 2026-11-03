@@ -1,6 +1,8 @@
 // 金币、重生费用与伪随机回归：验证单次领取、原子扣费、耗尽限制和随机参数稳定性。
 #include "World.h"
 #include "Account.h"
+#include <windows.h>
+#include <fstream>
 #include "Menu.h"
 #include <algorithm>
 #include <cmath>
@@ -19,6 +21,17 @@ bool sameParameters(const SpikeActivity& a, const SpikeActivity& b) {
 }
 }
 void runEconomyTests() {
+        // 玩家昵称隔离、解锁持久化与空昵称验证，测试不接触真实玩家目录。
+    const auto folder = std::filesystem::temp_directory_path() / ("game-profiles-" + std::to_string(GetCurrentProcessId()));
+    Account firstPlayer, secondPlayer, restored;
+    expect(!firstPlayer.login(L"   ", folder), "Blank nickname accepted");
+    expect(firstPlayer.login(L"测试甲", folder) && firstPlayer.unlocked == 1, "New player must start with one level");
+    expect(!firstPlayer.complete(1, 3, 100), "Locked level awarded progress");
+    expect(firstPlayer.earn(25) && firstPlayer.complete(0, 2, 600), "Progress write failed");
+    expect(secondPlayer.login(L"测试乙", folder) && secondPlayer.coins == 0 && secondPlayer.unlocked == 1, "Profiles mixed");
+    expect(restored.login(L"测试甲", folder) && restored.coins == 25 && restored.unlocked == 2 &&
+        restored.bestStars[0] == 2 && restored.bestScores[0] == 600, "Profile reload failed");
+    std::filesystem::remove(firstPlayer.path); std::filesystem::remove(secondPlayer.path); std::filesystem::remove(folder);
     // 临时账户与真实用户存档隔离，验证存盘、余额不足、去重购买及菜单返回。
     Account wallet; wallet.ready = true;
     wallet.path = std::filesystem::temp_directory_path() / ("game-wallet-test-" + std::to_string(GetCurrentProcessId()) + ".txt");
@@ -27,7 +40,7 @@ void runEconomyTests() {
     expect(wallet.buy(0) && wallet.coins == 10 && wallet.owned == 1, "Purchase failed");
     expect(wallet.buy(0) && wallet.coins == 10, "Owned item charged twice");
     { std::ifstream file(wallet.path); int version, balance, owned; file >> version >> balance >> owned;
-      expect(version == 1 && balance == 10 && owned == 1, "Account persistence failed"); }
+      expect(version == 2 && balance == 10 && owned == 1, "Account persistence failed"); }
     std::filesystem::remove(wallet.path);
     Menu shop; shop.selected = 5; shop.activate();
     expect(shop.page == Page::Shop && shop.itemCount() == 3, "Shop entry missing");

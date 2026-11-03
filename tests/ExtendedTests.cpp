@@ -1,6 +1,7 @@
 // 模式与机关回归测试：验证五关配置、战斗结果、断桥以及真实无尽通行路线。
 #include "World.h"
 #include "Menu.h"
+#include "Account.h"
 #include "Combat.h"
 #include "Controls.h"
 #include "DisplayLayout.h"
@@ -86,7 +87,11 @@ void runExtendedTests() {
     Menu menu; menu.page = Page::Modes; menu.selected = 1;
     require(menu.activate() == MenuAction::Start && menu.endlessMode, "Endless mode must start directly");
     menu.home(); menu.page = Page::Levels; menu.selected = 4;
+    const int oldUnlocked = account.unlocked;
+    require(menu.activate() == MenuAction::None, "Locked chapter must reject activation");
+    account.unlocked = 5;
     require(menu.activate() == MenuAction::Start && menu.chosenLevel == 4 && !menu.endlessMode, "Campaign selection must select the boss chapter");
+    account.unlocked = oldUnlocked;
     // 第二组：断桥踩踏后自动坍塌，重生恢复；锯轮碰撞致命。
     World bridge; bridge.load(1); bridge.player.body = {365, 462, 24, 28};
     steps(bridge, 90);
