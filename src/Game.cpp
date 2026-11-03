@@ -1,5 +1,6 @@
 // 游戏主循环与画面：收集输入、按固定步长更新世界，再绘制当前状态。
 #include "Game.h"
+#include "Sound.h"
 #include "SpecialTraps.h"
 #include "SceneRenderer.h"
 #include "Controls.h"
@@ -113,14 +114,17 @@ int Game::run(Preview preview) {
         world.load(4); world.player.body = {385, 195, 24, 28}; world.player.grounded = false;
         world.update({}, FixedStep);
     }
+    if (preview == Preview::Death) world.deathBurst.update(0.6f);
     using Clock = std::chrono::steady_clock;
     auto previous = Clock::now();
     double accumulator = 0;
     bool previousKeys[256]{};
+    Sound sound;
     bool pendingJump = false;
     bool running = true;
     int frames = 0;
     while (running && IsWindow(window)) {
+        const bool wasDead = world.dead;
         const auto now = Clock::now();
         const double frameTime = std::min(std::chrono::duration<double>(now - previous).count(), 0.1);
         previous = now;
@@ -167,7 +171,7 @@ int Game::run(Preview preview) {
             pendingJump = false;
         } else {
             // 第七步：处理暂停和死亡操作，重生与重开共用按钮/快捷键动作。
-            DeathAction action = world.dead && clicked ? deathScreenClick(clickX, clickY) : DeathAction::None;
+            DeathAction action = world.dead && world.deathBurst.age >= 0.55f && clicked ? deathScreenClick(clickX, clickY) : DeathAction::None;
             if (pressed('P') && !world.dead && !world.won) { paused = !paused; pendingJump = false; }
             if (pressed('R')) {
                 if (world.won || keys[VK_SHIFT]) action = DeathAction::Restart;
@@ -192,12 +196,21 @@ int Game::run(Preview preview) {
             if (focused && !smokeTest && !paused && !world.dead && menu.page == Page::Playing) {
                 accumulator += frameTime;
                 while (accumulator >= FixedStep) {
+                    const auto jumpSerial = world.player.jumpSerial;
                     world.update({controls.left, controls.right, pendingJump, controls.shoot, controls.fastFall, controls.jumpHeld}, FixedStep);
+                    if (!world.dead && world.player.jumpSerial != jumpSerial) sound.play(false);
                     pendingJump = false;
                     accumulator -= FixedStep;
                 }
             } else { accumulator = 0; pendingJump = false; }
         }
+        // 死亡反馈单独推进，规则世界保持冻结；菜单、失焦和暂停不消耗动画。
+        if (world.dead && !wasDead) {
+            paused = false;
+            if (!smokeTest) sound.play(true);
+        }
+        if (world.dead && menu.page == Page::Playing && (focused || smokeTest) && !paused)
+            world.deathBurst.update(static_cast<float>(frameTime));
         std::copy(std::begin(keys), std::end(keys), std::begin(previousKeys));
         // 第九步：按页面绘制；切出窗口的提示只显示在进行中的游戏画面。
         // 窗口设置生效时重建实际窗口，菜单、世界和当前设置仍保存在内存中。
@@ -327,7 +340,16 @@ void Game::render() const {
     label(static_cast<int>(goal.x) - 4, static_cast<int>(goal.y) - 30, L"终点", 18, RGB(255, 221, 132));
     drawCombatScene(world);
     // 绘制步骤七：小鸟随奔跑、起跳和落地播放动作，HUD 显示本关探索奖励。
-    drawPlayer(world, menu.settings.playerPalette);
+    if (!world.dead) drawPlayer(world, menu.settings.playerPalette);
+    // 血滴使用世界坐标和当前镜头，短拖尾显示飞溅方向，末段缩小消失。
+    for (const auto& p : world.deathBurst.drops) {
+        const float fade = std::min(1.0f, p.life * 3);
+        const int x = static_cast<int>(p.x - camera), y = static_cast<int>(p.y);
+        setlinecolor(RGB(145, 20, 32));
+        line(x, y, static_cast<int>(p.x - camera - p.vx * 0.018f), static_cast<int>(p.y - p.vy * 0.018f));
+        setfillcolor(RGB(225, 35, 48));
+        solidcircle(x, y, std::max(1, static_cast<int>(p.radius * fade)));
+    }
     if (!world.endless) {
         const int feathers = static_cast<int>(std::count_if(world.level.feathers.begin(), world.level.feathers.end(), [](const auto& f) { return f.collected; }));
         label(440, 22, L"星羽 " + std::to_wstring(feathers) + L" / " + std::to_wstring(world.level.feathers.size()), 18, RGB(255, 230, 133));
@@ -338,7 +360,10 @@ void Game::render() const {
             (world.chapter == 3 && !world.endless ? L"激光亮起时致命，虚线时可通行。观察节奏再出发。" :
             L"W 短按小跳 / 长按高跳；起点上方有弹簧与星羽支线。")), 18, RGB(220, 231, 237));
     // 绘制步骤八：死亡结算优先覆盖整个场景，否则显示暂停或通关面板。
-    if (world.dead) { drawDeathScreen(world); return; }
+    if (world.dead) {
+        if (world.deathBurst.age >= 0.55f) drawDeathScreen(world);
+        return;
+    }
     if (paused || world.won) {
         box({235, 190, 490, 140}, RGB(30, 45, 67));
         label(285, 215, world.won ? (world.chapter == 4 ? L"恭喜！五章挑战完成" : L"本关挑战完成！") : L"游戏已暂停", 28, RGB(255, 221, 132));
@@ -346,3 +371,4 @@ void Game::render() const {
     }
 }
 }
+

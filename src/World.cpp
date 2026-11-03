@@ -44,6 +44,7 @@ void World::respawn() {
     spikeActivity.reset();
     resetAdventure(*this);
     dead = false;
+    deathBurst.clear();
     deathReason.clear();
     // 第二步：重置速度和跳跃次数，在出生点或已激活的存档点放置角色。
     player = Player{};
@@ -59,6 +60,9 @@ void World::die(const wchar_t* reason) {
     // 已死亡或已通关不重复处理；记录原因、死亡次数和分数快照。
     if (dead || won) return;
     dead = true;
+    // 深渊死亡将喷溅位置限制在画面底部，让反馈仍可见。
+    deathBurst.emit(player.body.x + player.body.w / 2,
+        std::clamp(player.body.y + player.body.h / 2, 8.0f, ScreenHeight - 16.0f));
     deathReason = reason;
     ++deaths;
     scoring.settleDeath();
@@ -141,3 +145,4 @@ void World::update(const Input& input, float dt) {
     if (!endless && overlaps(player.body, level.goal) && (!level.boss || bossHealth <= 0)) won = true;
 }
 }
+

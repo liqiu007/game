@@ -1,6 +1,7 @@
 // 游戏规则与关卡数据：坐标、角色物理、碰撞、积分、重生和镜头计算。
 #pragma once
 #include "system.h"
+#include "Feedback.h"
 #include "SpikeActivity.h"
 #include <string>
 #include <vector>
@@ -62,6 +63,8 @@ struct Player {
     Rect body{60, 522, 24, 28};
     float vx = 0, vy = 0;
     int jumpsLeft = 2;
+    // 只在实际起跳时递增，供表现层触发一次音效。
+    unsigned jumpSerial = 0;
     bool grounded = false;
     // 参考 JubilWanna：离边容错、落地前缓存，以及起跳/落地的形变动画。
     float coyote = 0, jumpBuffer = 0, jumpCut = 0;
@@ -106,6 +109,7 @@ public:
     bool checkpointActive = false;
     bool won = false;
     bool dead = false;
+    DeathBurst deathBurst;
     std::wstring deathReason;
     ScoreSystem scoring;
     SpikeActivity spikeActivity = SpikeActivity::tutorial(level.spikes);
@@ -134,3 +138,4 @@ int runSelfTests();
 void runExtendedTests();
 void runAdventureTests();
 }
+

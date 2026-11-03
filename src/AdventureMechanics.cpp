@@ -75,6 +75,7 @@ void updateJumpFeel(Player& p, const Input& input, float dt) {
     // 第二步：优先地面/离边起跳，其次二段跳；没有剩余次数时保留缓冲等待落地。
     if (p.jumpBuffer > 0 && (p.grounded || p.coyote > 0 || p.jumpsLeft > 0)) {
         if (p.grounded || p.coyote > 0) p.jumpsLeft = 1; else --p.jumpsLeft;
+        ++p.jumpSerial;
         p.vy = -540; p.grounded = false; p.standingSky = -1;
         p.coyote = p.jumpBuffer = 0; p.jumpCut = 0.13f; p.stretch = 1;
     }
@@ -140,3 +141,4 @@ bool finishAdventure(World& w, float dt) {
     return true;
 }
 }
+
