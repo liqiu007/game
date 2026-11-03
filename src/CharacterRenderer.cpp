@@ -1,6 +1,7 @@
 // 像素鲸鱼娘与米饭绘制：使用内嵌图集，运行时无需外部图片文件。
 #include "CharacterRenderer.h"
 #include "CharacterSprites.h"
+#include "AiSprites.h"
 #pragma warning(push)
 #pragma warning(disable: 4201)
 #include <graphics.h>
@@ -11,14 +12,14 @@
 namespace game {
 namespace {
 // 最近邻绘制保留像素边缘；镜像、形变与配色仅改变外观。
-void drawSprite(int frame, float cx, float bottom, float sx, float sy, int facing, int palette) {
+void drawSprite(int frame, float cx, float bottom, float sx, float sy, int facing, int palette, bool ai = false) {
     for (int y = 0; y < 64; ++y) for (int x = 0; x < 64; ++x) {
-        const int index = sprites::index(sprites::Frames[frame][y][x]);
+        const int index = sprites::index((ai ? aiSprites::Frames[frame][y][x] : sprites::Frames[frame][y][x]));
         if (!index) continue;
-        const auto color = sprites::Palette[index];
+        const auto color = ai ? aiSprites::Palette[index] : sprites::Palette[index];
         int r = (color >> 16) & 255, g = (color >> 8) & 255, b = color & 255;
         // 两种可选海洋配色只调整蓝色区域，白围裙、肤色和米饭不受影响。
-        if (palette && b > r + 25 && b > g + 10) {
+        if (!ai && palette && b > r + 25 && b > g + 10) {
             if (palette == 1) { g = std::min(255, g + 55); b = std::max(g, b - 10); }
             else { r = std::min(255, r + 45); }
         }
@@ -35,6 +36,14 @@ void drawSprite(int frame, float cx, float bottom, float sx, float sy, int facin
 }
 void drawWhaleGirl(float cx, float cy, float scale, int facing, int palette,
     float time, float runPhase, bool airborne, float squash, float stretch, bool running, bool falling) {
+    // AI 角色使用独立待机与奔跑图，空中沿用奔跑姿势并施加拉伸。
+    if (palette >= 3) {
+        const int role = std::clamp(palette - 3, 0, 2);
+        const float bob = airborne ? 0 : std::sin(running ? runPhase * 4 : time * 3) * scale;
+        drawSprite(role + ((running || airborne) ? 3 : 0), cx, cy + 29 * scale + bob,
+            scale * (1 + squash * 0.16f), scale * (1 - squash * 0.14f + stretch * 0.08f), facing, 0, true);
+        return;
+    }
     // 待机轻微呼吸；跑步交替两帧，空中区分上升和下落姿势。
     const int frame = airborne ? (falling ? 4 : 3) : (running ? 1 + (static_cast<int>(runPhase * 2) & 1) : 0);
     const float bob = airborne ? 0 : std::sin(running ? runPhase * 4 : time * 3) * scale;

@@ -128,3 +128,9 @@ msbuild game.sln /m /p:Configuration=Release /p:Platform=x64
 实际起跳（含二段跳、离边容错及落地缓存起跳）播放合成上扬音效；无剩余跳跃次数时不播放。死亡只触发一次低沉音效与 48 枚血滴喷溅，血滴受重力影响并在约 1.34 秒内消失。结算面板延迟 0.55 秒显示，Enter / R 仍可立即重生，重生会清空血滴。音效在内存中生成 PCM WAV，由 Windows winmm 异步播放，无需下载音频资源；无可用音频设备时游戏继续运行。
 
 角色与米饭图集根据用户提供的参考图及确认的预览制作，嵌入 `src/CharacterSprites.h`，无需外部素材路径。当前版本没有独立金币系统，原星羽收集物改为米饭，保留每关 500 分、死亡保留和重开清除的规则。
+
+## AI 像素角色与 Windows 打包
+
+在设置 → 选择角色中循环选择鲸鱼娘三种配色、Claude、GPT、Grok。三位 AI 角色为原创拟人设计，具有待机与奔跑图像，支持朝向镜像、呼吸、跑动和起落形变，不代表官方角色。全部角色共享物理规则与米饭收集系统。
+
+Windows 安装 Visual Studio C++ 桌面开发工作负载及 EasyX 后，在 PowerShell 执行 `./build-release.ps1`；自定义 EasyX 目录时执行 `./build-release.ps1 -EasyXRoot C:\EasyX`。成功编译并通过自测后输出 `dist/game.exe` 与 `dist/game-windows-x64.zip`。当前 Linux 环境尚未生成或验证 Windows 可执行文件。
