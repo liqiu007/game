@@ -59,6 +59,12 @@ void ScoreSystem::collectCoin(std::size_t index) {
 }
 void ScoreSystem::spendRespawn() { score = std::max(0, score - RespawnCost); }
 void ScoreSystem::defeatEnemy(std::size_t index) { award(std::size_t{0xC0000000} + index, 200); }
+bool ScoreSystem::hasDefeatedEnemy() const {
+    return std::any_of(awarded.begin(), awarded.end(), [](std::size_t id) { return id >= 0xC0000000 && id < 0xD0000000; });
+}
+bool ScoreSystem::hasDefeatedBoss() const {
+    return std::find(awarded.begin(), awarded.end(), std::size_t{0xFFFFFFFE}) != awarded.end();
+}
 void ScoreSystem::defeatBoss() { award(std::size_t{0xFFFFFFFE}, 1000); }
 void ScoreSystem::collectFeather(std::size_t index) { award(std::size_t{0xD0000000} + index, 500); }
 

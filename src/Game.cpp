@@ -1,5 +1,6 @@
 // 游戏主循环与画面：收集输入、按固定步长更新世界，再绘制当前状态。
 #include "Game.h"
+#include "StarSystem.h"
 #include "Sound.h"
 #include "SpecialTraps.h"
 #include "SceneRenderer.h"
@@ -124,6 +125,15 @@ int Game::run(Preview preview) {
         world.update({}, FixedStep);
     }
     if (preview == Preview::Death || preview == Preview::Exhausted) world.deathBurst.update(0.6f);
+    // 通关预览覆盖部分星与满星，通过真实终点更新进入结算状态。
+    if (preview == Preview::Victory || preview == Preview::VictoryFull) {
+        world.load(0); world.elapsed = 65;
+        if (preview == Preview::VictoryFull) {
+            world.level.feathers.front().collected = true; world.scoring.collectFeather(0);
+            for (int i = 0; i < starRules(0).coinTarget; ++i) { world.level.coins[i].collected = true; world.scoring.collectCoin(i); }
+        }
+        world.player.body = world.level.goal; world.update({}, FixedStep);
+    }
     using Clock = std::chrono::steady_clock;
     auto previous = Clock::now();
     double accumulator = 0;
@@ -188,8 +198,12 @@ int Game::run(Preview preview) {
                 else world.die(L"你选择了结束本次挑战");
             }
             if (world.canRespawn() && pressed(VK_RETURN)) action = DeathAction::Respawn;
+            // 通关按钮与快捷键共用动作；页面切换时清除缓存输入与累计时间。
+            const auto victory = world.won && clicked ? victoryScreenClick(clickX, clickY) : VictoryAction::None;
+            if (victory == VictoryAction::Restart) action = DeathAction::Restart;
+            if (victory == VictoryAction::Home) { menu.home(); accumulator = 0; pendingJump = false; }
             // 闯关结束后顺序进入下一关；最终关回主页面，无尽模式不会出现通关面板。
-            if (world.won && pressed(VK_RETURN)) {
+            if (world.won && (pressed(VK_RETURN) || victory == VictoryAction::Next)) {
                 if (world.chapter < 4) { world.load(world.chapter + 1); menu.chosenLevel = world.chapter; }
                 else menu.home();
                 accumulator = 0; pendingJump = false;
@@ -287,6 +301,8 @@ int Game::run(Preview preview) {
             case Preview::Endless: path = L"endless-smoke-test.png"; break;
             case Preview::Adventure: path = L"adventure-smoke-test.png"; break;
             case Preview::Exhausted: path = L"exhausted-smoke-test.png"; break;
+            case Preview::Victory: path = L"victory-smoke-test.png"; break;
+            case Preview::VictoryFull: path = L"victory-full-smoke-test.png"; break;
             default: break;
             }
             saveimage(path);
@@ -376,10 +392,11 @@ void Game::render() const {
         if (world.deathBurst.age >= 0.55f) drawDeathScreen(world);
         return;
     }
-    if (paused || world.won) {
+    if (world.won) { drawVictoryScreen(world); return; }
+    if (paused) {
         box({235, 190, 490, 140}, RGB(30, 45, 67));
-        label(285, 215, world.won ? (world.chapter == 4 ? L"恭喜！五章挑战完成" : L"本关挑战完成！") : L"游戏已暂停", 28, RGB(255, 221, 132));
-        label(285, 270, world.won ? (world.chapter < 4 ? L"Enter 下一关 / R 重玩 / Esc 菜单" : L"Enter 返回主页面 / R 重玩") : L"按 P 继续 / Esc 主页面", 19, RGB(239, 245, 255));
+        label(285, 215, L"游戏已暂停", 28, RGB(255, 221, 132));
+        label(285, 270, L"按 P 继续 / Esc 主页面", 19, RGB(239, 245, 255));
     }
 }
 }

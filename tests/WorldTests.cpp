@@ -1,5 +1,6 @@
 // 无窗口回归测试：验证物理、完整通关、计分、死亡、镜头及尖刺组同步。
 #include "World.h"
+#include "StarSystem.h"
 #include "Menu.h"
 #include "SpecialTraps.h"
 #include <cmath>
@@ -299,6 +300,7 @@ int runSelfTests() {
         runExtendedTests();
         runAdventureTests();
         runEconomyTests();
+        runStarTests();
         std::cout << "PASS: five campaign routes, five feather routes, jump feel, adventure hazards, menu, fullscreen mapping, combat, boss, endless, scoring\n";
         return 0;
     } catch (const std::exception& e) {
