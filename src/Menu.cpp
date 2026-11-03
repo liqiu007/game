@@ -50,8 +50,8 @@ std::wstring Menu::itemText(int index) const {
     if (page == Page::Settings) {
         if (index == 0) return std::wstring(L"操作提示   ") + (settings.showHints ? L"开启" : L"关闭");
         if (index == 1) {
-            const wchar_t* colors[]{L"深海蓝", L"海盐青", L"暮光紫"};
-            return std::wstring(L"角色配色   ") + colors[settings.playerPalette];
+            const wchar_t* colors[]{L"深海蓝", L"海盐青", L"暮光紫", L"Claude", L"GPT", L"Grok"};
+            return std::wstring(L"选择角色   ") + colors[settings.playerPalette];
         }
         if (index == 2) return L"帧率上限   " + std::to_wstring(settings.frameLimit) + L" FPS";
         if (index == 3) {
@@ -110,7 +110,7 @@ MenuAction Menu::activate() {
     } else if (page == Page::Settings) {
         // 第三步：修改可立即生效的设置，设置页面自身不改变世界状态。
         if (selected == 0) settings.showHints = !settings.showHints;
-        else if (selected == 1) settings.playerPalette = (settings.playerPalette + 1) % 3;
+        else if (selected == 1) settings.playerPalette = (settings.playerPalette + 1) % 6;
         else if (selected == 2) settings.frameLimit = settings.frameLimit == 120 ? 60 : 120;
         else if (selected == 3) settings.windowSize = (settings.windowSize + 1) % 4;
         else home();

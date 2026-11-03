@@ -261,7 +261,14 @@ int runSelfTests() {
         check(!menu.settings.showHints, "Hint toggle must change value");
         menu.selected = 1;
         menu.activate(); menu.activate(); menu.activate();
-        check(menu.settings.playerPalette == 0, "Palette selection must wrap after three colors");
+        // 验证新增三个人物可被选择，最后循环回鲸鱼娘。
+        check(menu.itemText(1).find(L"Claude") != std::wstring::npos, "Claude selection missing");
+        menu.activate();
+        check(menu.itemText(1).find(L"GPT") != std::wstring::npos, "GPT selection missing");
+        menu.activate();
+        check(menu.itemText(1).find(L"Grok") != std::wstring::npos, "Grok selection missing");
+        menu.activate();
+        check(menu.settings.playerPalette == 0, "Character selection must wrap after six options");
         menu.selected = 2;
         menu.activate();
         check(menu.settings.frameLimit == 60, "Frame limit toggle must switch to 60 FPS");

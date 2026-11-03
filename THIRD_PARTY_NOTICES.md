@@ -38,3 +38,7 @@ SOFTWARE.
 ## 当前角色外观
 
 当前版本的鲸鱼娘和碗装米饭像素图集根据用户提供的角色参考图及确认预览制作，不来自 JubilWanna。上游 MIT 声明继续适用于保留的适配代码，不代表其覆盖用户参考图中的角色设计。
+
+## AI 娘新版角色
+
+Claude、GPT、Grok 的新版像素图集依据用户确认的预览制作，角色设定参考 ZipZipPipe 的 AI 娘系列，非厂商官方形象。参考来源：[Bilibili 相关作品及作者署名](https://www.bilibili.com/video/BV1Hfet6KEug/)、[角色图鉴](https://wulusai.net/AI/AI%E5%A8%98%E6%A1%A3%E6%A1%88)。角色设定权利归原作者；本项目代码的许可不代表授予这些角色设定的独立许可。
