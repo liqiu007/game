@@ -50,7 +50,14 @@ void ScoreSystem::update(const Player& before, const Player& after, const Level&
 }
 // 死亡冻结显示分数；只有重新开始才同时清除累计分数和已计分记录。
 void ScoreSystem::settleDeath() { finalScore = score; }
-void ScoreSystem::reset() { score = 0; finalScore = 0; awarded.clear(); }
+void ScoreSystem::reset() { score = 0; finalScore = 0; coinCount = 0; awarded.clear(); }
+void ScoreSystem::collectCoin(std::size_t index) {
+    // 金币使用独立编号，重复触碰或错误的重复调用都不能发第二次奖励。
+    const int before = score;
+    award(std::size_t{0xE0000000} + index, CoinPoints);
+    if (score > before) ++coinCount;
+}
+void ScoreSystem::spendRespawn() { score = std::max(0, score - RespawnCost); }
 void ScoreSystem::defeatEnemy(std::size_t index) { award(std::size_t{0xC0000000} + index, 200); }
 void ScoreSystem::defeatBoss() { award(std::size_t{0xFFFFFFFE}, 1000); }
 void ScoreSystem::collectFeather(std::size_t index) { award(std::size_t{0xD0000000} + index, 500); }
@@ -72,28 +79,28 @@ void centered(int y, const std::wstring& text, int size, COLORREF color) {
     settextcolor(color);
     outtextxy(x, y, text.c_str());
 }
-void button(const Rect& r, const wchar_t* text, POINT mouse) {
+void button(const Rect& r, const wchar_t* text, POINT mouse, bool enabled = true) {
     // 第一步：转换绘图坐标并检查悬停，用不同填充色提供鼠标反馈。
     const int x = static_cast<int>(r.x), y = static_cast<int>(r.y);
     const int right = static_cast<int>(r.right()), bottom = static_cast<int>(r.bottom());
-    const bool hover = contains(r, mouse.x, mouse.y);
+    const bool hover = enabled && contains(r, mouse.x, mouse.y);
     // 第二步：绘制外框、底色和明暗边缘，形成方块风格的立体按钮。
     setfillcolor(RGB(20, 20, 20));
     solidrectangle(x - 3, y - 3, right + 3, bottom + 3);
-    setfillcolor(hover ? RGB(133, 143, 164) : RGB(99, 99, 105));
+    setfillcolor(!enabled ? RGB(55, 52, 57) : (hover ? RGB(133, 143, 164) : RGB(99, 99, 105)));
     solidrectangle(x, y, right, bottom);
     setlinecolor(hover ? RGB(221, 230, 250) : RGB(173, 173, 179));
     line(x, y, right - 1, y); line(x, y, x, bottom - 1);
     setlinecolor(RGB(51, 51, 57));
     line(x + 1, bottom, right, bottom); line(right, y + 1, right, bottom);
     // 第三步：在按钮中放置标题及快捷键，悬停时高亮文字。
-    centered(y + 13, text, 22, hover ? RGB(255, 255, 180) : RGB(240, 240, 240));
+    centered(y + 13, text, 22, !enabled ? RGB(136, 126, 131) : (hover ? RGB(255, 255, 180) : RGB(240, 240, 240)));
 }
 }
 
-DeathAction deathScreenClick(int x, int y) {
+DeathAction deathScreenClick(int x, int y, bool canRespawn) {
     // 按命中区域返回动作，点击按钮外的地方不改变游戏状态。
-    if (contains(RespawnButton, x, y)) return DeathAction::Respawn;
+    if (canRespawn && contains(RespawnButton, x, y)) return DeathAction::Respawn;
     if (contains(RestartButton, x, y)) return DeathAction::Restart;
     return DeathAction::None;
 }
@@ -110,11 +117,11 @@ void drawDeathScreen(const World& world) {
     }
     // 第二步：透明绘制死亡原因、冻结分数、障碍数和死亡次数。
     setbkmode(TRANSPARENT);
-    centered(145, L"你死了！", 56, RGB(255, 255, 255));
+    centered(145, world.canRespawn() ? L"你死了！" : L"体力耗尽", 56, RGB(255, 255, 255));
     centered(218, world.deathReason, 20, RGB(232, 205, 205));
     centered(257, L"分数：" + std::to_wstring(world.scoring.deathScore()), 30, RGB(255, 230, 90));
-    centered(302, L"已通过障碍 " + std::to_wstring(world.scoring.cleared()) +
-        L"    死亡次数 " + std::to_wstring(world.deaths), 18, RGB(231, 220, 220));
+    centered(302, L"金币 " + std::to_wstring(world.scoring.coinsCollected()) +
+        L"    体力 " + std::to_wstring(world.stamina) + L" / 10    死亡 " + std::to_wstring(world.deaths), 18, RGB(231, 220, 220));
     // 第三步：将鼠标从桌面坐标转成窗口坐标，绘制按钮与重生规则提示。
     POINT mouse{};
     GetCursorPos(&mouse);
@@ -126,8 +133,9 @@ void drawDeathScreen(const World& world) {
     if (client.right > 0 && client.bottom > 0)
         fitViewport(client.right, client.bottom).mapPoint(mouse.x, mouse.y, logicalX, logicalY);
     mouse.x = logicalX; mouse.y = logicalY;
-    button(RespawnButton, L"重生  [Enter / R]", mouse);
+    button(RespawnButton, world.canRespawn() ? L"重生  -1 体力 / -100 分  [Enter / R]" : L"体力不足，无法重生", mouse, world.canRespawn());
     button(RestartButton, L"重新开始  [Shift + R]", mouse);
-    centered(491, L"重生保留积分与存档点 · 重新开始清空本局", 17, RGB(220, 197, 197));
+    centered(491, world.canRespawn() ? L"重生扣分最低为 0 · 已吃金币不刷新 · 保留存档点" : L"本次挑战结束，请重新开始本关", 17, RGB(220, 197, 197));
+    centered(520, L"重新开始：分数清零、金币恢复、体力重置为 10", 17, RGB(220, 197, 197));
 }
 }

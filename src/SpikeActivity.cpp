@@ -5,6 +5,18 @@
 #include <cmath>
 
 namespace game {
+namespace {
+void randomize(SpikeTrap& trap, const std::vector<Rect>& bases, std::mt19937& random) {
+    // 每条命每组仅抽取一次距离和速度，全部组员共用，避免每帧阈值跳变。
+    std::uniform_int_distribution<int> range(5, 15);
+    trap.triggerDistance = static_cast<float>(range(random));
+    trap.extensionSpeed = static_cast<float>(range(random));
+    float travel = 0;
+    for (const auto i : trap.indices) if (i < bases.size()) travel = std::max(travel, trap.extendedHeight - bases[i].h);
+    trap.riseSeconds = std::max(0.001f, travel / (trap.extensionSpeed * 60.0f));
+    trap.phase = SpikePhase::Idle; trap.elapsed = trap.extension = 0;
+}
+}
 SpikeActivity SpikeActivity::tutorial(const std::vector<Rect>& bases) {
     SpikeActivity activity;
     // 第一步：记录已经分组的尖刺，从每枚尚未分组的尖刺开始搜索。
@@ -33,13 +45,18 @@ SpikeActivity SpikeActivity::tutorial(const std::vector<Rect>& bases) {
     return activity;
 }
 
-void SpikeActivity::reset() {
-    // 重生或重开时整组回到待触发状态，并清除计时和伸长比例。
-    for (auto& trap : traps) {
-        trap.phase = SpikePhase::Idle;
-        trap.elapsed = 0;
-        trap.extension = 0;
+void SpikeActivity::reset(const std::vector<Rect>& bases, std::mt19937& random) {
+    // 重生或重开时生成新的伪随机参数；固定种子可以复现整条随机序列用于回归。
+    for (auto& trap : traps) randomize(trap, bases, random);
+}
+void SpikeActivity::rebuild(const std::vector<Rect>& bases, std::mt19937& random) {
+    // 先按地图重新分组，再恢复旧组；新地图生成不会使旧陷阱重新触发。
+    auto expanded = tutorial(bases);
+    for (auto& group : expanded.traps) {
+        const auto old = std::find_if(traps.begin(), traps.end(), [&](const auto& candidate) { return candidate.indices == group.indices; });
+        if (old != traps.end()) group = *old; else randomize(group, bases, random);
     }
+    traps = std::move(expanded.traps);
 }
 
 void SpikeActivity::update(const Rect& player, const std::vector<Rect>& bases, float dt) {

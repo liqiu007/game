@@ -4,6 +4,17 @@
 #include <algorithm>
 
 namespace game {
+namespace {
+void addRoadCoins(Level& level, std::size_t index) {
+    // 在平台安全入口和跳跃弧线上放金币，追加顺序作为稳定编号供无尽模式使用。
+    const auto& p = level.platforms[index];
+    for (float offset : {32.0f, 62.0f}) level.coins.push_back({{p.x + offset + (index == 0 ? 68 : 0), p.y - 26, 16, 16}});
+    if (index > 0) {
+        const auto& previous = level.platforms[index - 1];
+        level.coins.push_back({{(previous.right() + p.x) * 0.5f - 8, std::min(previous.y, p.y) - 70, 16, 16}});
+    }
+}
+}
 Level Level::campaign(int index) {
     // 第一步：复用基础跳跃间距，按关卡加入不同机制，避免随机生成不可达路线。
     Level result = tutorial();
@@ -35,6 +46,7 @@ Level Level::campaign(int index) {
     }
     // 高路提供星羽探索奖励，各关使用不同移动方向、定时平台或预警落刺。
     buildAdventureRoute(result);
+    for (std::size_t i = 0; i < result.platforms.size(); ++i) addRoadCoins(result, i);
     return result;
 }
 void World::load(int index, bool endlessMode) {
@@ -52,17 +64,18 @@ void World::load(int index, bool endlessMode) {
         level.spawnX = 60; level.spawnY = 522;
         level.checkpoint = {-1000, 0, 1, 1}; level.goal = {-1000, 0, 1, 1};
         level.width = 275;
+        addRoadCoins(level, 0);
     }
     checkpointActive = false; won = false; elapsed = 0; deaths = 0;
+    stamina = InitialStamina;
     scoring.reset();
     spikeActivity = SpikeActivity::tutorial(level.spikes);
-    respawn();
+    resetPlayer();
     if (endless) extendEndless();
 }
 void World::extendEndless() {
     // 保持角色前方至少一屏半有地形；旧平台不改编号，积分可稳定防止重复领取。
     if (!endless || level.width >= player.body.x + 1440) return;
-    const auto oldGroups = spikeActivity.traps;
     while (level.width < player.body.x + 1440) {
         const std::size_t index = level.platforms.size();
         const float heights[]{500, 440, 400, 460, 520};
@@ -70,6 +83,7 @@ void World::extendEndless() {
         const float y = heights[(index - 1) % 5];
         level.platforms.push_back({x, y, 180, 24});
         level.platformScores.push_back(100);
+        addRoadCoins(level, index);
         // 每三段设置一组伸缩尖刺，平台落脚区留出引诱机关的安全位置。
         if (index % 3 == 0) {
             level.spikes.push_back({x + 90, y - 24, 24, 24});
@@ -79,9 +93,7 @@ void World::extendEndless() {
         level.width = x + 180;
     }
     // 新区域分组后恢复旧组计时，防止生成地形时已经触发的机关重新启动。
-    spikeActivity = SpikeActivity::tutorial(level.spikes);
-    for (auto& group : spikeActivity.traps)
-        for (const auto& old : oldGroups) if (group.indices == old.indices) { group = old; break; }
+    spikeActivity.rebuild(level.spikes, spikeRandom);
 }
 bool World::platformSolid(std::size_t index) const {
     // 坍塌平台保留原编号，只跳过碰撞和绘制，不挤动其余计分索引。

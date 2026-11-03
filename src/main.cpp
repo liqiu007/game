@@ -26,6 +26,7 @@ int main(int argc, char* argv[]) {
         if (option == "--boss-smoke-test") preview = game::Preview::Boss;
         if (option == "--endless-smoke-test") preview = game::Preview::Endless;
         if (option == "--adventure-smoke-test") preview = game::Preview::Adventure;
+        if (option == "--exhausted-smoke-test") preview = game::Preview::Exhausted;
     }
     // 第三步：启动窗口和游戏循环，并把运行结果返回操作系统。
     return application.run(preview);

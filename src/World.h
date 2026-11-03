@@ -4,6 +4,7 @@
 #include "SpikeActivity.h"
 #include <string>
 #include <vector>
+#include <cstdint>
 
 namespace game {
 // 固定窗口尺寸与模拟步长；地图宽度独立于窗口宽度。
@@ -41,6 +42,8 @@ struct FallingSpike {
     FallingPhase phase = FallingPhase::Idle;
 };
 struct Feather { Rect body; bool collected = false; };
+// 金币位置属于世界坐标，已领取标记在重生时保留，重新挑战时恢复。
+struct Coin { Rect body; bool collected = false; };
 // 各类机关的数据与运行状态分开保存，重生时恢复初始状态。
 struct FragilePlatform { std::size_t index; float timer = 0.65f; bool touched = false, collapsed = false; };
 struct Enemy { Rect body; float left, right, speed = 65; int direction = 1; bool alive = true; };
@@ -90,6 +93,7 @@ struct Level {
     std::vector<Spring> springs;
     std::vector<FallingSpike> fallingSpikes;
     std::vector<Feather> feathers;
+    std::vector<Coin> coins;
     // 创建第一关的基础路线：10 个平台、4 组地面尖刺、倒刺与夹击机关。
     static Level tutorial();
     // 闯关模式按编号创建五种主题；无尽模式在前方继续生成可跳跃的平台。
@@ -103,6 +107,8 @@ public:
     Level level = Level::tutorial();
     Player player;
     int deaths = 0;
+    static constexpr int InitialStamina = 10;
+    int stamina = InitialStamina;
     bool checkpointActive = false;
     bool won = false;
     bool dead = false;
@@ -117,10 +123,12 @@ public:
     std::vector<Projectile> projectiles;
 
     // 构造时放置角色；每个固定步长推进一次物理与机关。
-    World();
+    explicit World(std::uint32_t seed = 0xC0FFEEu);
     void update(const Input& input, float dt);
-    // 重生保留积分和存档点；死亡结算只记录一次；重开清空本局。
-    void respawn();
+    // 死亡结算只记录一次；重生扣费并保留存档点；重开清空本局、恢复体力。
+    // 只有死亡且有体力时才执行付费重生；初始化和换关走独立复位入口。
+    bool respawn();
+    bool canRespawn() const { return dead && stamina > 0; }
     void die(const wchar_t* reason);
     void restart();
     void load(int index, bool endlessMode = false);
@@ -128,9 +136,14 @@ public:
     bool platformSolid(std::size_t index) const;
     // 镜头跟随角色但不会超出地图左右边界。
     float cameraX() const;
+private:
+    // 复制世界时随机引擎也被复制，使路线搜索和故障复现稳定。
+    std::mt19937 spikeRandom;
+    void resetPlayer();
 };
 // 测试入口返回 0 表示通过，非零表示发现问题。
 int runSelfTests();
 void runExtendedTests();
 void runAdventureTests();
+void runEconomyTests();
 }

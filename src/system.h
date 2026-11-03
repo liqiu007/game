@@ -12,9 +12,16 @@ enum class DeathAction { None, Respawn, Restart };
 
 class ScoreSystem {
 public:
+    static constexpr int CoinPoints = 50;
+    static constexpr int RespawnCost = 100;
+    int coinsCollected() const { return coinCount; }
+    void collectCoin(std::size_t index);
+    // 分数最多扣到零，不清除已领奖编号，防止重生刷金币或重复奖励。
+    void spendRespawn();
     // 查询实时总分、已计分障碍数和死亡时冻结的分数。
     int total() const { return score; }
-    int cleared() const { return static_cast<int>(awarded.size()); }
+    // 金币单独显示计数，不混入 HUD 的障碍奖励数量。
+    int cleared() const { return static_cast<int>(awarded.size()) - coinCount; }
     int deathScore() const { return finalScore; }
     // 比较一步前后的玩家位置，只对新越过或落上的障碍计分。
     void update(const Player& before, const Player& after, const Level& level);
@@ -30,6 +37,7 @@ private:
     // awarded 存储已发分的障碍编号，重生时保留以防重复刷分。
     int score = 0;
     int finalScore = 0;
+    int coinCount = 0;
     std::vector<std::size_t> awarded;
     // 统一检查分值及障碍编号，再累计一次奖励。
     void award(std::size_t id, int points);
@@ -37,5 +45,5 @@ private:
 
 // 结算绘制与按钮命中区域共用 system.cpp 中的布局，避免显示和点击错位。
 void drawDeathScreen(const World& world);
-DeathAction deathScreenClick(int x, int y);
+DeathAction deathScreenClick(int x, int y, bool canRespawn = true);
 }

@@ -6,20 +6,34 @@
 #include "DisplayLayout.h"
 #include <stdexcept>
 #include <utility>
+#include <cmath>
 
 namespace game {
 namespace {
 void require(bool result, const char* message) { if (!result) throw std::runtime_error(message); }
 void steps(World& w, int count, Input input = {}) { for (int i = 0; i < count; ++i) w.update(input, FixedStep); }
+void baitNearby(World& w) {
+    // 用真实移动靠近至最小随机触发半径内，不修改陷阱参数或生命状态。
+    for (const auto& spike : w.level.spikes) {
+        if (std::abs(w.player.body.bottom() - spike.bottom()) > 1 || spike.x < w.player.body.right() || spike.x - w.player.body.right() > 110) continue;
+        for (int i = 0; i < 120 && w.player.body.x < spike.x - 28 && !w.dead; ++i) w.update({false, true, false, true}, FixedStep);
+        steps(w, 200, {false, false, false, true});
+        for (int i = 0; i < 60 && w.player.body.x > spike.x - 50 && !w.dead; ++i) w.update({true, false, false, true}, FixedStep);
+        break;
+    }
+}
 bool travelTo(World& world, float target) {
     // 尝试不同等待和二段跳时机，使用真实物理与危险判定寻找一条可行路线。
-    for (int delay = 0; delay <= 240; delay += 12) {
-        for (int secondJump : {24, 36, 48, 60}) {
+    baitNearby(world);
+    for (int approach : {0, -4, -8, 16, 32, 48}) for (int delay = 0; delay <= 240; delay += 6) {
+        for (int secondJump : {24, 36, 48, 60, 18, 30, 42, 54}) {
             World candidate = world;
+            // 可在平台上后退起跳，或先走过头顶锯轮/倒刺再跳，保持真实碰撞。
+            steps(candidate, std::abs(approach), {approach < 0, approach > 0, false, true});
             steps(candidate, delay, {false, false, false, true});
             for (int tick = 0; tick < 210 && !candidate.dead; ++tick) {
                 candidate.update({false, candidate.player.body.x < target, tick == 0 || tick == secondJump, true}, FixedStep);
-                if (tick > secondJump && candidate.player.grounded && candidate.player.body.x >= target - 4) {
+                if (!candidate.dead && tick > secondJump && candidate.player.grounded && candidate.player.body.x >= target - 4) {
                     world = candidate; return true;
                 }
             }
@@ -77,7 +91,7 @@ void runExtendedTests() {
     World bridge; bridge.load(1); bridge.player.body = {365, 462, 24, 28};
     steps(bridge, 90);
     require(bridge.level.fragile[0].collapsed && bridge.player.body.y > 462, "Fragile bridge must collapse and let player fall");
-    bridge.respawn();
+    bridge.die(L"验证断桥重生"); bridge.respawn();
     require(!bridge.level.fragile[0].collapsed, "Respawn must restore fragile platforms");
     bridge.player.body = bridge.level.saws[0].body;
     steps(bridge, 1);
@@ -118,7 +132,7 @@ void runExtendedTests() {
             if (tick > 36 && endless.player.grounded) break;
         }
         require(!endless.dead && endless.player.body.x >= target - 5, "Generated endless platform must be reachable");
-        steps(endless, 180); // 落脚位置会引诱同平台机关，等待整组缩回再出发。
+        baitNearby(endless); // 根据新的近距离阈值主动引诱，等待整组缩回再出发。
     }
     require(endless.level.width > initialWidth && !endless.won && endless.scoring.total() > 0, "Endless generation must continue with stable scoring");
     const int score = endless.scoring.total();
@@ -129,9 +143,9 @@ void runExtendedTests() {
     // 第七组：五关实际配置均使用真实等待、跳跃、射击走到终点，包含新增高路的影响。
     for (int chapter = 0; chapter < 5; ++chapter) {
         World route; route.load(chapter);
-        steps(route, 34, {false, true, false}); steps(route, 180);
+        baitNearby(route);
         for (float target : {365.0f, 555.0f, 780.0f, 970.0f, 1180.0f, 1410.0f, 1640.0f, 1870.0f, 2080.0f}) {
-            if (!travelTo(route, target)) throw std::runtime_error("Campaign route blocked: chapter=" + std::to_string(chapter + 1) + ", target=" + std::to_string(static_cast<int>(target)));
+            if (!travelTo(route, target)) throw std::runtime_error("Campaign route blocked: chapter=" + std::to_string(chapter + 1) + ", target=" + std::to_string(static_cast<int>(target)) + ", x=" + std::to_string(route.player.body.x) + ", dead=" + std::to_string(route.dead));
         }
         if (chapter == 4) {
             // 在竞技场尝试不同跳跃节奏躲弹，必须击败完整血量的 BOSS 才继续。

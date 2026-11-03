@@ -119,6 +119,15 @@ void drawTerrain(const World& w) {
     }
 }
 void drawAdventureScene(const World& w) {
+    // 金币沿主线和跳跃弧线分布；已收集后隐藏，金币中心与拾取碰撞盒一致。
+    for (const auto& coin : w.level.coins) if (!coin.collected) {
+        const int x = static_cast<int>(coin.body.x + 8 - w.cameraX()), y = static_cast<int>(coin.body.y + 8);
+        if (x < -12 || x > ScreenWidth + 12) continue;
+        setfillcolor(RGB(154, 100, 29)); solidcircle(x, y, 9);
+        setfillcolor(RGB(255, 207, 65)); solidcircle(x, y, 7);
+        setlinecolor(RGB(255, 245, 169)); line(x, y - 4, x, y + 4);
+        setfillcolor(RGB(255, 250, 193)); solidcircle(x - 3, y - 3, 2);
+    }
     // 第一步：高路用蓝色单向台面，与普通实体平台区分；移动轨迹在背后以虚线绘制。
     const auto rect = [&](const Rect& r, COLORREF c) { fill(static_cast<int>(r.x - w.cameraX()), static_cast<int>(r.y),
         static_cast<int>(r.right() - w.cameraX()), static_cast<int>(r.bottom()), c); };

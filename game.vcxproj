@@ -53,6 +53,7 @@
     <ClInclude Include="src\AdventureMechanics.h" /><ClCompile Include="src\AdventureMechanics.cpp" />
     <ClInclude Include="src\CharacterRenderer.h" /><ClCompile Include="src\CharacterRenderer.cpp" />
     <ClCompile Include="tests\AdventureTests.cpp" />
+    <ClCompile Include="tests\EconomyTests.cpp" />
     <ClInclude Include="src\system.h" /><ClCompile Include="src\system.cpp" />
     <ClInclude Include="src\SpikeActivity.h" /><ClCompile Include="src\SpikeActivity.cpp" />
     <ClInclude Include="src\Menu.h" /><ClCompile Include="src\Menu.cpp" />

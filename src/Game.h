@@ -5,7 +5,7 @@
 
 namespace game {
 // 验证模式只改变启动场景；正常游戏使用 None。
-enum class Preview { None, Scene, Death, Spikes, Map, Home, Levels, Settings, Traps, Modes, Window, Bridge, Enemies, Lasers, Boss, Endless, Adventure };
+enum class Preview { None, Scene, Death, Spikes, Map, Home, Levels, Settings, Traps, Modes, Window, Bridge, Enemies, Lasers, Boss, Endless, Adventure, Exhausted };
 class Game {
 public:
     // 初始化窗口，持续处理输入、更新规则和绘图，退出时释放图形资源。

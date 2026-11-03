@@ -29,19 +29,27 @@ Level Level::tutorial() {
     };
 }
 // 创建世界后按出生点放置角色，并准备所有尖刺组。
-World::World() { respawn(); }
+World::World(std::uint32_t seed) : spikeRandom(seed) { resetPlayer(); }
 float World::cameraX() const {
     // 让角色位于画面约 45% 处，再裁剪镜头范围；窄地图不滚动。
     return std::clamp(player.body.x + player.body.w / 2 - ScreenWidth * 0.45f,
         0.0f, std::max(0.0f, level.width - ScreenWidth));
 }
-void World::respawn() {
+bool World::respawn() {
+    // 扣费与复位作为一次操作：连点、活着时调用或体力耗尽都不会多扣分。
+    if (!canRespawn()) return false;
+    --stamina;
+    scoring.spendRespawn();
+    resetPlayer();
+    return true;
+}
+void World::resetPlayer() {
     // 重生恢复战斗机关，积分记录仍保留，避免靠反复重生刷分。
     projectiles.clear(); bossHealth = 12; bossTimer = 0; shootCooldown = 0; facing = 1;
     for (auto& f : level.fragile) { f.timer = 0.65f; f.touched = false; f.collapsed = false; }
     for (auto& e : level.enemies) { e.body.x = e.left; e.alive = true; e.direction = 1; }
     // 第一步：复位机关与死亡标记，保留本局累计积分和存档点。
-    spikeActivity.reset();
+    spikeActivity.reset(level.spikes, spikeRandom);
     resetAdventure(*this);
     dead = false;
     deathReason.clear();
@@ -137,6 +145,11 @@ void World::update(const Input& input, float dt) {
     if (player.body.y > ScreenHeight + 80) { die(L"你坠入了深渊"); return; }
     // 第九步：存活时更新得分，再激活存档点或触发终点。
     scoring.update(before, player, level);
+    // 只有存活时接触金币才发分，死亡当步不领取；已吃金币不会因重生再出现。
+    for (std::size_t i = 0; i < level.coins.size(); ++i) {
+        auto& coin = level.coins[i];
+        if (!coin.collected && overlaps(player.body, coin.body)) { coin.collected = true; scoring.collectCoin(i); }
+    }
     if (overlaps(player.body, level.checkpoint)) checkpointActive = true;
     if (!endless && overlaps(player.body, level.goal) && (!level.boss || bossHealth <= 0)) won = true;
 }

@@ -36,6 +36,8 @@ bool down(int key) { return (GetAsyncKeyState(key) & 0x8000) != 0; }
 int Game::run(Preview preview) {
     // 第一步：创建窗口。正常启动停留主页面，截图模式直接进入指定页面或场景。
     const bool smokeTest = preview != Preview::None;
+    // 正常启动使用时间种子；自动回归和预览保持固定种子，便于复现随机陷阱。
+    if (!smokeTest) world = World(static_cast<std::uint32_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
     // 使用固定逻辑画布，窗口大小只影响最终缩放，不改变物理坐标。
     int widths[]{960, 1200, 1440, GetSystemMetrics(SM_CXSCREEN)};
     int heights[]{640, 800, 960, GetSystemMetrics(SM_CYSCREEN)};
@@ -85,10 +87,12 @@ int Game::run(Preview preview) {
     }
     // 第二步：构造验证场景，使用真实机关和计分流程，菜单预览不伪造继续游戏记录。
     if (preview == Preview::Death || preview == Preview::Spikes) {
-        for (int i = 0; i < 34; ++i) world.update({false, true, false}, FixedStep);
-        const int steps = preview == Preview::Death ? 180 : 12;
+        for (int i = 0; i < 45; ++i) world.update({false, true, false}, FixedStep);
+        const int steps = preview == Preview::Death ? 200 : 12;
         for (int i = 0; i < steps; ++i) world.update({}, FixedStep);
         if (preview == Preview::Death) {
+            // 近距离诱发后先后退，再跳过仍存在的普通短刺。
+            for (int i = 0; i < 12; ++i) world.update({true, false}, FixedStep);
             for (int i = 0; i < 180; ++i) {
                 world.update({false, world.player.body.x < 365, i == 0 || i == 36}, FixedStep);
                 if (i > 36 && world.player.grounded) break;
@@ -97,7 +101,7 @@ int Game::run(Preview preview) {
         }
     }
     if (preview == Preview::Map || preview == Preview::Traps) {
-        world.player.body = preview == Preview::Map ? Rect{1640, 322, 24, 28} : Rect{1180, 452, 24, 28};
+        world.player.body = preview == Preview::Map ? Rect{1640, 322, 24, 28} : Rect{1218, 452, 24, 28};
         for (int i = 0; i < 12; ++i) world.update({}, FixedStep);
     }
     // 主题预览定位到具有代表性的机关区域，真实关卡配置与正常游戏一致。
@@ -106,6 +110,11 @@ int Game::run(Preview preview) {
         world.load(chapter, preview == Preview::Endless);
         if (preview == Preview::Boss) world.player.body = {2060, 332, 24, 28};
         else if (preview != Preview::Endless) world.player.body = {970, 397, 24, 28};
+    }
+    if (preview == Preview::Exhausted) {
+        // 使用真实重生流程耗尽十点体力，最后一次死亡显示禁用的重生按钮。
+        for (int i = 0; i < World::InitialStamina; ++i) { world.die(L"验证体力消耗"); world.respawn(); }
+        world.die(L"本次挑战已用完所有重生体力");
     }
     // 第三步：记录前一帧按键，统一处理菜单与游戏的单次按下事件，防止跨页面误触发。
     if (preview == Preview::Adventure) {
@@ -167,14 +176,14 @@ int Game::run(Preview preview) {
             pendingJump = false;
         } else {
             // 第七步：处理暂停和死亡操作，重生与重开共用按钮/快捷键动作。
-            DeathAction action = world.dead && clicked ? deathScreenClick(clickX, clickY) : DeathAction::None;
+            DeathAction action = world.dead && clicked ? deathScreenClick(clickX, clickY, world.canRespawn()) : DeathAction::None;
             if (pressed('P') && !world.dead && !world.won) { paused = !paused; pendingJump = false; }
             if (pressed('R')) {
                 if (world.won || keys[VK_SHIFT]) action = DeathAction::Restart;
-                else if (world.dead) action = DeathAction::Respawn;
+                else if (world.canRespawn()) action = DeathAction::Respawn;
                 else world.die(L"你选择了结束本次挑战");
             }
-            if (world.dead && pressed(VK_RETURN)) action = DeathAction::Respawn;
+            if (world.canRespawn() && pressed(VK_RETURN)) action = DeathAction::Respawn;
             // 闯关结束后顺序进入下一关；最终关回主页面，无尽模式不会出现通关面板。
             if (world.won && pressed(VK_RETURN)) {
                 if (world.chapter < 4) { world.load(world.chapter + 1); menu.chosenLevel = world.chapter; }
@@ -264,6 +273,7 @@ int Game::run(Preview preview) {
             case Preview::Boss: path = L"boss-smoke-test.png"; break;
             case Preview::Endless: path = L"endless-smoke-test.png"; break;
             case Preview::Adventure: path = L"adventure-smoke-test.png"; break;
+            case Preview::Exhausted: path = L"exhausted-smoke-test.png"; break;
             default: break;
             }
             saveimage(path);
@@ -328,6 +338,9 @@ void Game::render() const {
     drawCombatScene(world);
     // 绘制步骤七：小鸟随奔跑、起跳和落地播放动作，HUD 显示本关探索奖励。
     drawPlayer(world, menu.settings.playerPalette);
+    label(440, 52, L"体力 " + std::to_wstring(world.stamina) + L" / 10", 18,
+        world.stamina <= 2 ? RGB(255, 128, 116) : RGB(127, 225, 170));
+    label(440, 80, L"金币 " + std::to_wstring(world.scoring.coinsCollected()), 18, RGB(255, 218, 92));
     if (!world.endless) {
         const int feathers = static_cast<int>(std::count_if(world.level.feathers.begin(), world.level.feathers.end(), [](const auto& f) { return f.collected; }));
         label(440, 22, L"星羽 " + std::to_wstring(feathers) + L" / " + std::to_wstring(world.level.feathers.size()), 18, RGB(255, 230, 133));

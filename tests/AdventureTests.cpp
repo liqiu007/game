@@ -13,7 +13,7 @@ World emptyWorld() {
     // 独立物理测试只移除无关危险；完整关卡路线测试使用实际关卡，不移除任何机关。
     World w; w.level = Level{}; w.level.platforms = {{0, 550, 275, 90}};
     w.level.spawnX = 60; w.level.spawnY = 522; w.level.goal = {-1000, 0, 1, 1};
-    w.level.checkpoint = {-1000, 0, 1, 1}; w.respawn(); return w;
+    w.level.checkpoint = {-1000, 0, 1, 1}; return w;
 }
 bool reachSky(World& world, int index) {
     // 搜索等待和二段跳时机，以真实 WASD 输入抵达指定平台，不改变角色位置或生命。
@@ -109,8 +109,8 @@ void runAdventureTests() {
             "Feather route must rejoin the main checkpoint platform safely");
         const int score = route.scoring.total(); ensure(score >= 500, "Feather must grant 500 points");
         route.die(L"test"); route.respawn();
-        ensure(route.level.feathers[0].collected && route.scoring.total() == score, "Death must preserve feather and score");
-        route.scoring.collectFeather(0); ensure(route.scoring.total() == score, "Feather cannot award twice");
+        ensure(route.level.feathers[0].collected && route.scoring.total() == score - 100, "Respawn must preserve feather and deduct 100 points");
+        route.scoring.collectFeather(0); ensure(route.scoring.total() == score - 100, "Feather cannot award twice");
         route.restart(); ensure(!route.level.feathers[0].collected && route.scoring.total() == 0, "Restart must reset feather and score");
     }
 }
