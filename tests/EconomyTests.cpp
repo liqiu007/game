@@ -17,6 +17,19 @@ bool sameParameters(const SpikeActivity& a, const SpikeActivity& b) {
 }
 }
 void runEconomyTests() {
+    // 混合类型回归：靠近固定组不伸长，活动组仍响应，重生保持类型。
+    World mixed; mixed.load(0);
+    expect(mixed.spikeActivity.traps[0].retractable && !mixed.spikeActivity.traps[1].retractable, "Mixed spike types missing");
+    const auto fixedIndex = mixed.spikeActivity.traps[1].indices.front();
+    const auto base = mixed.level.spikes[fixedIndex];
+    for (int i = 0; i < 240; ++i) mixed.spikeActivity.update(base, mixed.level.spikes, FixedStep);
+    expect(mixed.spikeActivity.bounds(fixedIndex, base).h == base.h &&
+        mixed.spikeActivity.traps[1].extension == 0, "Fixed spikes must never extend");
+    const auto movingIndex = mixed.spikeActivity.traps[0].indices.front();
+    mixed.spikeActivity.update(mixed.level.spikes[movingIndex], mixed.level.spikes, FixedStep);
+    expect(mixed.spikeActivity.traps[0].extension > 0, "Moving spikes must still extend");
+    mixed.die(L"类型复位测试"); mixed.respawn();
+    expect(!mixed.spikeActivity.traps[1].retractable, "Respawn changed fixed spike type");
     // 第一组：开局不扣体力、不自动送金币；真实移动收集两枚，每枚 50 分且只领一次。
     World w; w.load(0);
     expect(w.stamina == 10 && w.scoring.total() == 0 && w.level.coins.size() == 29, "New challenge must start at ten stamina with road coins");

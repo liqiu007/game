@@ -12,6 +12,8 @@ enum class SpikePhase { Idle, Extending, Holding, Retracting, Spent };
 struct SpikeTrap {
     // 每个编号对应关卡中的一枚尖刺；距离和高度以像素计，时间以秒计。
     std::vector<std::size_t> indices;
+    // 类型按完整分组固定，重生不改变；固定尖刺仍然有碰撞伤害。
+    bool retractable = true;
     float triggerDistance = 10;
     float extendedHeight = 148;
     // 速度单位为像素/60 Hz 参考步；实际更新按秒换算，与渲染帧率无关。

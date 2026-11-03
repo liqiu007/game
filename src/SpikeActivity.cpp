@@ -40,6 +40,8 @@ SpikeActivity SpikeActivity::tutorial(const std::vector<Rect>& bases) {
             }
         }
         // 第三步：保存完整分组；每组随后独立计时，组内所有成员共用进度。
+        // 按组交替安排伸缩与固定尖刺，保证地图同时存在两种类型。
+        group.retractable = activity.traps.size() % 2 == 0;
         activity.traps.push_back(group);
     }
     return activity;
@@ -63,6 +65,7 @@ void SpikeActivity::update(const Rect& player, const std::vector<Rect>& bases, f
     // 第一步：忽略无效时间；尚未启动的组检查角色是否靠近任意成员。
     if (dt <= 0) return;
     for (auto& trap : traps) {
+        if (!trap.retractable) continue;
         if (trap.phase == SpikePhase::Idle) {
             bool nearby = false;
             for (const auto index : trap.indices) {
@@ -105,6 +108,7 @@ Rect SpikeActivity::bounds(std::size_t index, const Rect& base) const {
     // 找到尖刺所属组，用共享进度计算高度；没有匹配组则保留原始外框。
     for (const auto& trap : traps) {
         if (std::find(trap.indices.begin(), trap.indices.end(), index) == trap.indices.end()) continue;
+        if (!trap.retractable) return base;
         const float height = base.h + (std::max(base.h, trap.extendedHeight) - base.h) * trap.extension;
         // 固定底座、向上延伸，宽度和障碍编号保持不变，不影响计分标识。
         return {base.x, base.bottom() - height, base.w, height};
