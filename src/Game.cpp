@@ -144,6 +144,7 @@ int Game::run(Preview preview) {
     int frames = 0;
     while (running && IsWindow(window)) {
         const bool wasDead = world.dead;
+        if (!world.won) victoryAge = 0;
         const auto now = Clock::now();
         const double frameTime = std::min(std::chrono::duration<double>(now - previous).count(), 0.1);
         previous = now;
@@ -227,6 +228,8 @@ int Game::run(Preview preview) {
                 }
             } else { accumulator = 0; pendingJump = false; }
         }
+        if (world.won && menu.page == Page::Playing && (focused || smokeTest)) victoryAge += static_cast<float>(frameTime);
+        if (smokeTest) victoryAge = 3;
         // 死亡反馈单独推进，规则世界保持冻结；菜单、失焦和暂停不消耗动画。
         if (world.dead && !wasDead) {
             paused = false;
@@ -392,7 +395,7 @@ void Game::render() const {
         if (world.deathBurst.age >= 0.55f) drawDeathScreen(world);
         return;
     }
-    if (world.won) { drawVictoryScreen(world); return; }
+    if (world.won) { drawVictoryScreen(world, victoryAge); return; }
     if (paused) {
         box({235, 190, 490, 140}, RGB(30, 45, 67));
         label(285, 215, L"游戏已暂停", 28, RGB(255, 221, 132));

@@ -124,13 +124,10 @@ void runExtendedTests() {
     World endless; endless.load(0, true);
     const float initialWidth = endless.level.width;
     steps(endless, 65, {false, true, false});
-    for (std::size_t i = 1; i <= 12; ++i) {
+    for (std::size_t i = 1; i <= 24; ++i) {
         endless.extendEndless();
         const float target = endless.level.platforms[i].x + 24;
-        for (int tick = 0; tick < 200; ++tick) {
-            endless.update({false, endless.player.body.x < target, tick == 0 || tick == 36}, FixedStep);
-            if (tick > 36 && endless.player.grounded) break;
-        }
+        require(travelTo(endless, target), "Endless mixed trap route blocked");
         require(!endless.dead && endless.player.body.x >= target - 5, "Generated endless platform must be reachable");
         baitNearby(endless); // 根据新的近距离阈值主动引诱，等待整组缩回再出发。
     }

@@ -81,9 +81,10 @@ void World::extendEndless() {
     while (level.width < player.body.x + 1440) {
         const std::size_t index = level.platforms.size();
         const float heights[]{500, 440, 400, 460, 520};
-        const float x = level.platforms.back().right() + 60;
+        const float x = level.platforms.back().right() + (index % 4 == 0 ? 80 : 60);
         const float y = heights[(index - 1) % 5];
-        level.platforms.push_back({x, y, 180, 24});
+        const float width = index % 4 == 1 ? 210.0f : 180.0f;
+        level.platforms.push_back({x, y, width, 24});
         level.platformScores.push_back(100);
         addRoadCoins(level, index);
         // 每三段设置一组伸缩尖刺，平台落脚区留出引诱机关的安全位置。
@@ -92,7 +93,19 @@ void World::extendEndless() {
             level.spikes.push_back({x + 114, y - 24, 24, 24});
             level.spikeScores.push_back(100); level.spikeScores.push_back(100);
         }
-        level.width = x + 180;
+                // 分段组合避免每个平台同时堆叠机关；首段留作熟悉操作。
+        if (index > 3 && index % 3 != 0) {
+            switch (index % 8) {
+            case 0: level.fragile.push_back({index}); break;
+            case 1: level.enemies.push_back({{x + 110, y - 28, 26, 28}, x + 90, x + width - 30}); break;
+            case 2: level.lasers.push_back({{x + 135, y - 120, 10, 120}, 4.4f, 0.9f, 1.5f}); break;
+            case 3: level.saws.push_back({{x + 140, y - 100, 20, 20}, x + 140, 22, 1.4f}); break;
+            case 4: level.overheadTraps.push_back({{x + 115, y - 190, 24, 40}, TrapStyle::Ceiling}); break;
+            case 5: level.fallingSpikes.push_back({{x + 140, y - 200, 22, 28}, y - 200}); break;
+            default: break;
+            }
+        }
+        level.width = x + width;
     }
     // 新区域分组后恢复旧组计时，防止生成地形时已经触发的机关重新启动。
     spikeActivity.rebuild(level.spikes, spikeRandom);

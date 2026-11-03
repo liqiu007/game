@@ -14,6 +14,8 @@ private:
     // 世界保存游戏规则状态；暂停只控制主循环是否推进世界。
     World world;
     bool paused = false;
+    // 结算动画独立于被冻结的世界时间。
+    float victoryAge = 0;
     Menu menu;
     // 先画世界与固定信息，再根据死亡或通关状态覆盖相应界面。
     void render() const;

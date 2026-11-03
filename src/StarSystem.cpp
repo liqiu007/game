@@ -39,12 +39,12 @@ void centered(int y, const std::wstring& text, int size, COLORREF color) {
     settextstyle(size, 0, L"Microsoft YaHei");
     textAt((ScreenWidth - textwidth(text.c_str())) / 2, y, text, size, color);
 }
-void star(int x, int y, bool filled) {
+void star(int x, int y, bool filled, double scale = 1) {
     // 外半径与内半径交替构成十个顶点；未获得时仅画边，不填充内部。
     POINT points[10];
     for (int i = 0; i < 10; ++i) {
         const double angle = -1.57079632679 + i * 3.14159265359 / 5;
-        const double radius = i % 2 == 0 ? 43 : 19;
+        const double radius = (i % 2 == 0 ? 43 : 19) * scale;
         points[i] = {static_cast<LONG>(x + std::cos(angle) * radius), static_cast<LONG>(y + std::sin(angle) * radius)};
     }
     setlinecolor(filled ? RGB(255, 215, 96) : RGB(115, 137, 162));
@@ -63,14 +63,27 @@ VictoryAction victoryScreenClick(int x, int y) {
     }
     return VictoryAction::None;
 }
-void drawVictoryScreen(const World& world) {
+void drawVictoryScreen(const World& world, float age) {
     // 第一步：覆盖游戏场景，展示关卡标题、总星数、最终分数与实际用时。
     const auto result = evaluateStars(world);
     const auto rules = starRules(world.chapter);
     setfillcolor(RGB(13, 22, 37)); solidrectangle(90, 42, 870, 600);
     setlinecolor(RGB(68, 94, 124)); rectangle(90, 42, 870, 600);
     centered(62, L"挑战完成 / " + world.level.name, 28, RGB(237, 245, 255));
-    for (int i = 0; i < 3; ++i) star(360 + i * 120, 164, i < result.count);
+        // 依次揭晓：空轮廓先占位，获得的星放大回弹，周围短暂散射金色光点。
+    for (int i = 0; i < 3; ++i) {
+        const float t = age - 0.25f - i * 0.45f;
+        star(360 + i * 120, 164, false);
+        if (i >= result.count || t < 0) continue;
+        const double scale = t < 0.15f ? t / 0.15f * 1.35 : 1 + 0.35 * std::exp(-(t - 0.15) * 9) * std::cos((t - 0.15) * 15);
+        star(360 + i * 120, 164, true, scale);
+        if (t < 0.65f) for (int ray = 0; ray < 10; ++ray) {
+            const double angle = ray * 0.62831853;
+            setfillcolor(RGB(255, 220, 110));
+            solidcircle(360 + i * 120 + static_cast<int>(std::cos(angle) * (45 + t * 65)),
+                164 + static_cast<int>(std::sin(angle) * (45 + t * 65)), std::max(1, static_cast<int>(4 * (1 - t / 0.65f))));
+        }
+    }
     centered(220, std::to_wstring(result.count) + L" / 3 星     得分 " + std::to_wstring(world.scoring.total()), 28, RGB(255, 220, 117));
     centered(261, L"用时 " + std::to_wstring(static_cast<int>(std::ceil(world.elapsed))) + L" 秒    死亡 " +
         std::to_wstring(world.deaths) + L" 次", 20, RGB(171, 190, 211));

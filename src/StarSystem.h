@@ -12,7 +12,7 @@ struct StarResult {
 enum class VictoryAction { None, Next, Restart, Home };
 StarRules starRules(int chapter);
 StarResult evaluateStars(const World& world);
-void drawVictoryScreen(const World& world);
+void drawVictoryScreen(const World& world, float age = 3);
 VictoryAction victoryScreenClick(int x, int y);
 void runStarTests();
 }
