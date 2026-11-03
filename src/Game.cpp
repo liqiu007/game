@@ -339,7 +339,7 @@ void Game::render() const {
     box({goal.x + 5, goal.y + 5, 22, 47}, RGB(76, 61, 42));
     label(static_cast<int>(goal.x) - 4, static_cast<int>(goal.y) - 30, L"终点", 18, RGB(255, 221, 132));
     drawCombatScene(world);
-    // 绘制步骤七：小鸟随奔跑、起跳和落地播放动作，HUD 显示本关探索奖励。
+    // 绘制步骤七：鲸鱼娘随奔跑、起跳和落地播放动作，HUD 显示本关探索奖励。
     if (!world.dead) drawPlayer(world, menu.settings.playerPalette);
     // 血滴使用世界坐标和当前镜头，短拖尾显示飞溅方向，末段缩小消失。
     for (const auto& p : world.deathBurst.drops) {
@@ -352,13 +352,13 @@ void Game::render() const {
     }
     if (!world.endless) {
         const int feathers = static_cast<int>(std::count_if(world.level.feathers.begin(), world.level.feathers.end(), [](const auto& f) { return f.collected; }));
-        label(440, 22, L"星羽 " + std::to_wstring(feathers) + L" / " + std::to_wstring(world.level.feathers.size()), 18, RGB(255, 230, 133));
+        label(440, 22, L"米饭 " + std::to_wstring(feathers) + L" / " + std::to_wstring(world.level.feathers.size()), 18, RGB(255, 230, 133));
     }
     if (menu.settings.showHints)
         label(32, 590, world.endless ? L"W 短按小跳 / 长按高跳；S 快落，J 射击。" :
             (world.chapter == 1 ? L"裂纹桥面踩踏后会坍塌，及时起跳；避开移动锯轮。" :
             (world.chapter == 3 && !world.endless ? L"激光亮起时致命，虚线时可通行。观察节奏再出发。" :
-            L"W 短按小跳 / 长按高跳；起点上方有弹簧与星羽支线。")), 18, RGB(220, 231, 237));
+            L"W 短按小跳 / 长按高跳；起点上方有弹簧与米饭支线。")), 18, RGB(220, 231, 237));
     // 绘制步骤八：死亡结算优先覆盖整个场景，否则显示暂停或通关面板。
     if (world.dead) {
         if (world.deathBurst.age >= 0.55f) drawDeathScreen(world);

@@ -33,3 +33,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+
+
+## 当前角色外观
+
+当前版本的鲸鱼娘和碗装米饭像素图集根据用户提供的角色参考图及确认预览制作，不来自 JubilWanna。上游 MIT 声明继续适用于保留的适配代码，不代表其覆盖用户参考图中的角色设计。
