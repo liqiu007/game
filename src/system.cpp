@@ -16,7 +16,7 @@ void ScoreSystem::award(std::size_t id, int points) {
     // 先拒绝无分值或已计分的障碍，再登记编号并累加奖励。
     if (points <= 0 || std::find(awarded.begin(), awarded.end(), id) != awarded.end()) return;
     awarded.push_back(id);
-    score += points;
+    if (!distanceOnly) score += points;
 }
 
 void ScoreSystem::update(const Player& before, const Player& after, const Level& level) {
@@ -50,12 +50,17 @@ void ScoreSystem::update(const Player& before, const Player& after, const Level&
 }
 // 死亡冻结显示分数；只有重新开始才同时清除累计分数和已计分记录。
 void ScoreSystem::settleDeath() { finalScore = score; }
-void ScoreSystem::reset() { score = 0; finalScore = 0; coinCount = 0; awarded.clear(); }
+void ScoreSystem::reset() { score = 0; finalScore = 0; coinCount = 0; distanceMeters = 0; distanceOnly = false; awarded.clear(); }
 void ScoreSystem::collectCoin(std::size_t index) {
     // 金币使用独立编号，重复触碰或错误的重复调用都不能发第二次奖励。
-    const int before = score;
+    const auto before = awarded.size();
     award(std::size_t{0xE0000000} + index, CoinPoints);
-    if (score > before) ++coinCount;
+    if (awarded.size() > before) ++coinCount;
+}
+void ScoreSystem::advanceDistance(float pixels) {
+    if (!distanceOnly) return;
+    distanceMeters = std::max(distanceMeters, static_cast<int>(std::max(0.0f, pixels) / 10));
+    score = distanceMeters * 20;
 }
 void ScoreSystem::spendRespawn() { score = std::max(0, score - RespawnCost); }
 void ScoreSystem::defeatEnemy(std::size_t index) { award(std::size_t{0xC0000000} + index, 200); }
@@ -127,7 +132,7 @@ void drawDeathScreen(const World& world) {
     centered(218, world.deathReason, 20, RGB(232, 205, 205));
     centered(257, L"分数：" + std::to_wstring(world.scoring.deathScore()), 30, RGB(255, 230, 90));
     centered(302, L"金币 " + std::to_wstring(world.scoring.coinsCollected()) +
-        L"    体力 " + std::to_wstring(world.stamina) + L" / 10    死亡 " + std::to_wstring(world.deaths), 18, RGB(231, 220, 220));
+        (world.endless ? L"    无限重生    死亡 " : L"    体力 " + std::to_wstring(world.stamina) + L" / 10    死亡 ") + std::to_wstring(world.deaths), 18, RGB(231, 220, 220));
     // 第三步：将鼠标从桌面坐标转成窗口坐标，绘制按钮与重生规则提示。
     POINT mouse{};
     GetCursorPos(&mouse);
@@ -139,9 +144,9 @@ void drawDeathScreen(const World& world) {
     if (client.right > 0 && client.bottom > 0)
         fitViewport(client.right, client.bottom).mapPoint(mouse.x, mouse.y, logicalX, logicalY);
     mouse.x = logicalX; mouse.y = logicalY;
-    button(RespawnButton, world.canRespawn() ? L"重生  -1 体力 / -100 分  [Enter / R]" : L"体力不足，无法重生", mouse, world.canRespawn());
+    button(RespawnButton, world.endless ? L"免费重生  [Enter / R]" : (world.canRespawn() ? L"重生  -1 体力 / -100 分  [Enter / R]" : L"体力不足，无法重生"), mouse, world.canRespawn());
     button(RestartButton, L"重新开始  [Shift + R]", mouse);
-    centered(491, world.canRespawn() ? L"重生扣分最低为 0 · 已吃金币不刷新 · 保留存档点" : L"本次挑战结束，请重新开始本关", 17, RGB(220, 197, 197));
-    centered(520, L"重新开始：分数清零、金币恢复、体力重置为 10", 17, RGB(220, 197, 197));
+    centered(491, world.endless ? L"最远距离每米 20 分 · 回头不重复计分 · 金币不加分" : (world.canRespawn() ? L"重生扣分最低为 0 · 已吃金币不刷新 · 保留存档点" : L"本次挑战结束，请重新开始本关"), 17, RGB(220, 197, 197));
+    centered(520, world.endless ? L"重新开始：距离和分数清零、金币恢复" : L"重新开始：分数清零、金币恢复、体力重置为 10", 17, RGB(220, 197, 197));
 }
 }

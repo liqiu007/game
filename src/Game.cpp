@@ -333,7 +333,7 @@ void Game::render() const {
     }
     label(650, 22, L"死亡 " + std::to_wstring(world.deaths) + L"    时间 " +
         std::to_wstring(static_cast<int>(world.elapsed)) + L"s", 21, RGB(239, 245, 255));
-    label(650, 60, world.endless ? L"距离 " + std::to_wstring(static_cast<int>(world.player.body.x / 10)) + L" m" :
+    label(650, 60, world.endless ? L"距离 " + std::to_wstring(world.scoring.distanceMeters) + L" m" :
         (world.checkpointActive ? L"存档点已激活" : L"前往绿色旗帜存档"), 18, RGB(92, 221, 167));
     label(650, 83, L"积分 " + std::to_wstring(world.scoring.total()) + L"    障碍 " +
         std::to_wstring(world.scoring.cleared()), 18, RGB(255, 230, 90));
@@ -370,7 +370,7 @@ void Game::render() const {
     drawCombatScene(world);
     // 绘制步骤七：鲸鱼娘随奔跑、起跳和落地播放动作，HUD 显示本关探索奖励。
     if (!world.dead) drawPlayer(world, menu.settings.playerPalette);
-    label(440, 52, L"体力 " + std::to_wstring(world.stamina) + L" / 10", 18, world.stamina <= 2 ? RGB(255, 128, 116) : RGB(127, 225, 170));
+    label(440, 52, (world.endless ? L"无限重生" : L"体力 " + std::to_wstring(world.stamina) + L" / 10"), 18, world.stamina <= 2 ? RGB(255, 128, 116) : RGB(127, 225, 170));
     label(440, 80, L"金币 " + std::to_wstring(world.scoring.coinsCollected()), 18, RGB(255, 218, 92));
     // 血滴使用世界坐标和当前镜头，短拖尾显示飞溅方向，末段缩小消失。
     for (const auto& p : world.deathBurst.drops) {

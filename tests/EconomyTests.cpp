@@ -17,6 +17,15 @@ bool sameParameters(const SpikeActivity& a, const SpikeActivity& b) {
 }
 }
 void runEconomyTests() {
+    // 无尽以最远距离计分，金币和战斗不加分，重生不扣费也不限制次数。
+    World distanceWorld; distanceWorld.load(0, true);
+    distanceWorld.scoring.advanceDistance(100);
+    distanceWorld.scoring.collectCoin(0); distanceWorld.scoring.defeatEnemy(0);
+    expect(distanceWorld.scoring.total() == 200 && distanceWorld.scoring.coinsCollected() == 1, "Endless distance-only scoring failed");
+    distanceWorld.scoring.advanceDistance(50);
+    for (int i = 0; i < 15; ++i) { distanceWorld.die(L"无限重生"); expect(distanceWorld.respawn(), "Endless respawn limited"); }
+    expect(distanceWorld.scoring.total() == 200 && distanceWorld.stamina == 10, "Endless respawn charged a fee");
+    distanceWorld.restart(); expect(distanceWorld.scoring.total() == 0 && distanceWorld.scoring.distanceMeters == 0, "Endless restart retained distance");
     // 混合类型回归：靠近固定组不伸长，活动组仍响应，重生保持类型。
     World mixed; mixed.load(0);
     expect(mixed.spikeActivity.traps[0].retractable && !mixed.spikeActivity.traps[1].retractable, "Mixed spike types missing");
@@ -100,7 +109,7 @@ void runEconomyTests() {
     const auto old = endless.spikeActivity.traps[0]; const auto count = endless.level.coins.size();
     endless.player.body.x = endless.level.width - 200; endless.extendEndless();
     const auto& kept = endless.spikeActivity.traps[0];
-    expect(endless.level.coins.size() > count && endless.level.coins[0].collected && endless.scoring.total() == 50,
+    expect(endless.level.coins.size() > count && endless.level.coins[0].collected && endless.scoring.total() == 0,
         "Endless extension must append coins without duplicating old rewards");
     expect(kept.triggerDistance == old.triggerDistance && kept.extensionSpeed == old.extensionSpeed && kept.extension == 1 && kept.phase == old.phase,
         "Endless extension must preserve old spike parameters and state");

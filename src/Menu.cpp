@@ -28,7 +28,7 @@ void spike(int x, int y, bool downward) {
 }
 int Menu::itemCount() const {
     // 闯关模式内有五关和返回按钮；无尽模式直接启动持续生成的地图。
-    return page == Page::Home ? 5 : (page == Page::Levels ? 6 : (page == Page::Settings ? 5 : (page == Page::Modes ? 3 : 0)));
+    return page == Page::Shop ? 1 : page == Page::Home ? 6 : (page == Page::Levels ? 6 : (page == Page::Settings ? 5 : (page == Page::Modes ? 3 : 0)));
 }
 bool Menu::enabled(int index) const {
     return index >= 0 && index < itemCount() && !(page == Page::Home && index == 1 && !hasSession);
@@ -36,9 +36,10 @@ bool Menu::enabled(int index) const {
 std::wstring Menu::itemText(int index) const {
     // 为每种页面生成实际状态文字；设置按钮直接显示当前值。
     if (page == Page::Home) {
-        const wchar_t* items[]{L"开始游戏", L"继续游戏", L"游戏模式", L"设置", L"退出游戏"};
-        return index >= 0 && index < 5 ? items[index] : L"";
+        const wchar_t* items[]{L"开始游戏", L"继续游戏", L"游戏模式", L"设置", L"退出游戏", L"游戏商店"};
+        return index >= 0 && index < 6 ? items[index] : L"";
     }
+    if (page == Page::Shop) return L"返回主页面";
     if (page == Page::Modes) {
         const wchar_t* items[]{L"闯关模式", L"无尽模式", L"返回主页面"};
         return items[index];
@@ -96,7 +97,7 @@ MenuAction Menu::activate() {
     if (page == Page::Home) {
         if (selected == 1) { page = Page::Playing; return MenuAction::Continue; }
         if (selected == 4) return MenuAction::Exit;
-        page = selected == 3 ? Page::Settings : Page::Modes;
+        page = selected == 5 ? Page::Shop : (selected == 3 ? Page::Settings : Page::Modes);
         selected = 0;
     } else if (page == Page::Modes) {
         // 模式选择是唯一入口，闯关才进入选关，无尽直接生成新地图。
@@ -107,7 +108,7 @@ MenuAction Menu::activate() {
         // 五关都可直接选择；通关后还可在游戏内按 Enter 顺序进入下一关。
         if (selected < 5) { chosenLevel = selected; endlessMode = false; hasSession = true; page = Page::Playing; return MenuAction::Start; }
         back();
-    } else if (page == Page::Settings) {
+    } else if (page == Page::Shop) { home(); } else if (page == Page::Settings) {
         // 第三步：修改可立即生效的设置，设置页面自身不改变世界状态。
         if (selected == 0) settings.showHints = !settings.showHints;
         else if (selected == 1) settings.playerPalette = (settings.playerPalette + 1) % 6;
@@ -126,7 +127,7 @@ void Menu::render() const {
     for (int x = 0; x < 960; x += 40) line(x, 0, x, 640);
     for (int y = 0; y < 640; y += 40) line(0, y, 960, y);
     text(64, 42, L"GAME / I WANNA", 17, RGB(95, 213, 255));
-    const wchar_t* title = page == Page::Home ? L"极限试炼" : (page == Page::Levels ? L"闯关 / 选择关卡" : (page == Page::Modes ? L"游戏模式" : L"游戏设置"));
+    const wchar_t* title = page == Page::Shop ? L"游戏商店" : page == Page::Home ? L"极限试炼" : (page == Page::Levels ? L"闯关 / 选择关卡" : (page == Page::Modes ? L"游戏模式" : L"游戏设置"));
     text(60, 86, title, 52, RGB(239, 245, 255));
     text(64, 160, page == Page::Home ? L"每一次重来，都离终点更近。" :
         (page == Page::Levels ? L"五个世界，五种考验。选择后从该关起点开始。" :
@@ -144,6 +145,10 @@ void Menu::render() const {
         if (page == Page::Home && i == 1 && !hasSession) text(ButtonX + 205, y + 15, L"暂无本次进度", 14, RGB(89, 104, 122));
     }
 
+    if (page == Page::Shop) {
+        text(64, 195, L"商品筹备中，暂未开放购买。", 22, RGB(255, 220, 120));
+        return;
+    }
     // 绘制步骤三：右侧说明当前关卡主题或玩法，不把选关入口放回主页面。
     fill(492, 188, 900, 544, RGB(21, 32, 49));
     const wchar_t* names[]{L"小试牛刀", L"断桥危机", L"敌人来袭", L"小心激光", L"终章：BOSS战"};

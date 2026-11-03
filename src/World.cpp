@@ -38,8 +38,7 @@ float World::cameraX() const {
 bool World::respawn() {
     // 扣费与复位作为一次操作：连点、活着时调用或体力耗尽都不会多扣分。
     if (!canRespawn()) return false;
-    --stamina;
-    scoring.spendRespawn();
+    if (!endless) { --stamina; scoring.spendRespawn(); }
     resetPlayer();
     return true;
 }
@@ -130,6 +129,7 @@ void World::update(const Input& input, float dt) {
         if (!before.grounded && landingSpeed > 250) player.squash = 1;
     }
 
+    scoring.advanceDistance(player.body.x - level.spawnX);
     // 第六步：先更新整组尖刺的动态尺寸，再用相同外框检查危险碰撞。
     spikeActivity.update(player.body, level.spikes, dt);
     for (std::size_t i = 0; i < level.spikes.size(); ++i) {

@@ -20,6 +20,10 @@ public:
     void spendRespawn();
     // 查询实时总分、已计分障碍数和死亡时冻结的分数。
     int total() const { return score; }
+    // 无尽只按最远前进距离计分，回头和重生不会重复刷分。
+    bool distanceOnly = false;
+    int distanceMeters = 0;
+    void advanceDistance(float pixels);
     // 金币单独显示计数，不混入 HUD 的障碍奖励数量。
     int cleared() const { return static_cast<int>(awarded.size()) - coinCount; }
     int deathScore() const { return finalScore; }

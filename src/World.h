@@ -132,7 +132,7 @@ public:
     // 死亡结算只记录一次；重生扣费并保留存档点；重开清空本局、恢复体力。
     // 只有死亡且有体力时才执行付费重生；初始化和换关走独立复位入口。
     bool respawn();
-    bool canRespawn() const { return dead && stamina > 0; }
+    bool canRespawn() const { return dead && (endless || stamina > 0); }
     void die(const wchar_t* reason);
     void restart();
     void load(int index, bool endlessMode = false);

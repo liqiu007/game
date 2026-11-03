@@ -3,7 +3,7 @@
 #include <string>
 
 namespace game {
-enum class Page { Home, Modes, Levels, Settings, Playing };
+enum class Page { Home, Modes, Levels, Settings, Shop, Playing };
 enum class MenuAction { None, Start, Continue, Exit };
 struct GameSettings {
     // 设置在本次运行中生效：提示开关、三种角色配色、绘制帧率上限。

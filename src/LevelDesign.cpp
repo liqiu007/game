@@ -71,6 +71,7 @@ void World::load(int index, bool endlessMode) {
     checkpointActive = false; won = false; elapsed = 0; deaths = 0;
     stamina = InitialStamina;
     scoring.reset();
+    scoring.distanceOnly = endless;
     spikeActivity = SpikeActivity::tutorial(level.spikes);
     resetPlayer();
     if (endless) extendEndless();
