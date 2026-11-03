@@ -36,11 +36,11 @@ void drawSprite(int frame, float cx, float bottom, float sx, float sy, int facin
 }
 void drawWhaleGirl(float cx, float cy, float scale, int facing, int palette,
     float time, float runPhase, bool airborne, float squash, float stretch, bool running, bool falling) {
-    // AI 角色使用独立待机与奔跑图，空中沿用奔跑姿势并施加拉伸。
+    // AI 娘分别使用待机、奔跑、跳跃三组图，空中统一使用跳跃姿势。
     if (palette >= 3) {
         const int role = std::clamp(palette - 3, 0, 2);
         const float bob = airborne ? 0 : std::sin(running ? runPhase * 4 : time * 3) * scale;
-        drawSprite(role + ((running || airborne) ? 3 : 0), cx, cy + 29 * scale + bob,
+        drawSprite(role + (airborne ? 6 : (running ? 3 : 0)), cx, cy + 29 * scale + bob,
             scale * (1 + squash * 0.16f), scale * (1 - squash * 0.14f + stretch * 0.08f), facing, 0, true);
         return;
     }

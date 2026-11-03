@@ -131,6 +131,6 @@ msbuild game.sln /m /p:Configuration=Release /p:Platform=x64
 
 ## AI 像素角色与 Windows 打包
 
-在设置 → 选择角色中循环选择鲸鱼娘三种配色、Claude、GPT、Grok。三位 AI 角色为原创拟人设计，具有待机与奔跑图像，支持朝向镜像、呼吸、跑动和起落形变，不代表官方角色。全部角色共享物理规则与米饭收集系统。
+在设置 → 选择角色中循环选择鲸鱼娘三种配色、Claude、GPT、Grok。三位 AI 娘参考 ZipZipPipe 系列设定并按用户确认的新版预览绘制：Claude 橙发抱书少女、GPT 白龙娘、Grok 金发黑金战斧少女，具有待机、奔跑与跳跃图像，支持朝向镜像、呼吸、跑动和起落形变，不代表官方角色。全部角色共享物理规则与米饭收集系统。
 
 Windows 安装 Visual Studio C++ 桌面开发工作负载及 EasyX 后，在 PowerShell 执行 `./build-release.ps1`；自定义 EasyX 目录时执行 `./build-release.ps1 -EasyXRoot C:\EasyX`。成功编译并通过自测后输出 `dist/game.exe` 与 `dist/game-windows-x64.zip`。当前 Linux 环境尚未生成或验证 Windows 可执行文件。
