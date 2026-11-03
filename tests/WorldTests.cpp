@@ -34,6 +34,35 @@ void jumpTo(World& w, float target) {
 }
 int runSelfTests() {
     try {
+        // 反馈回归：实际起跳计数、死亡去重、冻结规则、粒子重力与生命周期。
+        World feedback;
+        feedback.update({false, false, true}, FixedStep);
+        check(feedback.player.jumpSerial == 1, "Jump feedback missing");
+        feedback.update({false, false, true}, FixedStep);
+        feedback.update({false, false, true}, FixedStep);
+        check(feedback.player.jumpSerial == 2, "Rejected jump played feedback");
+        feedback.die(L"反馈测试");
+        feedback.die(L"重复死亡");
+        check(feedback.deaths == 1 && feedback.deathBurst.drops.size() == 48, "Death burst duplicated");
+        const auto frozen = feedback.player.body;
+        const auto drop = feedback.deathBurst.drops.front();
+        feedback.update({}, FixedStep);
+        feedback.deathBurst.update(0.1f);
+        check(feedback.player.body.y == frozen.y && feedback.deathBurst.drops.front().vy > drop.vy,
+            "Death physics must freeze while particles fall");
+        feedback.deathBurst.update(1.5f);
+        check(feedback.deathBurst.drops.empty(), "Particles did not expire");
+        feedback.respawn();
+        check(feedback.deathBurst.age == 0 && feedback.deathBurst.drops.empty(), "Respawn left feedback behind");
+        // 检查两种合成音色的 WAV 标识、长度和首尾静音包络。
+        for (bool death : {false, true}) {
+            const auto wav = synthesizeSound(death);
+            check(wav.size() == 44 + (death ? 22050 / 2 : 22050 / 7) * 2, "WAV size mismatch");
+            check(wav[0] == 'R' && wav[8] == 'W' && wav[34] == 16, "Invalid PCM header");
+            check(wav[44] == 0 && wav[45] == 0 && wav.back() == 0 && wav[wav.size() - 2] == 0,
+                "Sound envelope must start/end at silence");
+        }
+
         // 测试一：落地位置、第一次跳跃、二段跳、拒绝第三跳和落地补充次数。
         World w;
         step(w, 20);
@@ -271,3 +300,4 @@ int runSelfTests() {
     }
 }
 }
+

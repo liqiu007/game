@@ -1,5 +1,6 @@
 // 六种主题背景与战斗画面：五个闯关主题加无尽星空，不依赖外部素材文件。
 #include "SceneRenderer.h"
+#include "CharacterRenderer.h"
 #include "Combat.h"
 #include "AdventureMechanics.h"
 #pragma warning(push)
@@ -166,15 +167,12 @@ void drawAdventureScene(const World& w) {
             setlinestyle(PS_DOT, 1); setlinecolor(RGB(241, 186, 97)); line(x + 12, y + 35, x + 12, 300); setlinestyle(PS_SOLID, 1);
         }
     }
-    // 第三步：星羽悬浮发光，碰撞区域固定，收集后不再绘制。
+    // 第三步：米饭悬浮发光，碰撞区域固定，收集后不再绘制。
     for (const auto& f : w.level.feathers) if (!f.collected) {
         const int x = static_cast<int>(f.body.x + 9 - w.cameraX()), y = static_cast<int>(f.body.y + 13 + std::sin(w.elapsed * 3) * 3);
-        setfillcolor(RGB(130, 108, 61)); solidcircle(x, y, 18);
-        setfillcolor(RGB(255, 222, 104)); solidellipse(x - 6, y - 12, x + 7, y + 10);
-        setlinecolor(RGB(255, 250, 213)); line(x - 3, y + 14, x + 3, y - 9);
-        for (int k = -6; k <= 6; k += 4) line(x, y + k, x + 7, y + k - 5);
+        drawRiceBowl(static_cast<float>(x), static_cast<float>(y));
     }
-    if (!w.level.skyPlatforms.empty()) text(static_cast<int>(45 - w.cameraX()), 338, L"↑ 星羽高路", RGB(213, 234, 203));
+    if (!w.level.skyPlatforms.empty()) text(static_cast<int>(45 - w.cameraX()), 338, L"↑ 米饭高路", RGB(213, 234, 203));
 }
 void drawCombatScene(const World& w) {
     // 第一步：将敌人、锯轮与子弹的世界坐标转换到屏幕，使用与碰撞相同的外框。
@@ -219,3 +217,4 @@ void drawCombatScene(const World& w) {
     for (const auto& shot : w.projectiles) box(shot.body, shot.hostile ? RGB(255, 98, 99) : RGB(255, 231, 102));
 }
 }
+

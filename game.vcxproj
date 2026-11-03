@@ -48,9 +48,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="src\Feedback.h" /><ClInclude Include="src\Sound.h" />
     <ClInclude Include="src\World.h" /><ClInclude Include="src\Game.h" />
     <ClInclude Include="src\Controls.h" /><ClInclude Include="src\DisplayLayout.h" />
     <ClInclude Include="src\AdventureMechanics.h" /><ClCompile Include="src\AdventureMechanics.cpp" />
+    <ClInclude Include="src\CharacterSprites.h" />
     <ClInclude Include="src\CharacterRenderer.h" /><ClCompile Include="src\CharacterRenderer.cpp" />
     <ClCompile Include="tests\AdventureTests.cpp" />
     <ClCompile Include="tests\EconomyTests.cpp" />
@@ -66,3 +68,4 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
+
