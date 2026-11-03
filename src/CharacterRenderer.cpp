@@ -20,7 +20,9 @@ void drawSprite(int frame, float cx, float bottom, float sx, float sy, int facin
         int r = (color >> 16) & 255, g = (color >> 8) & 255, b = color & 255;
         // 两种可选海洋配色只调整蓝色区域，白围裙、肤色和米饭不受影响。
         if (!ai && palette && b > r + 25 && b > g + 10) {
-            if (palette == 1) { g = std::min(255, g + 55); b = std::max(g, b - 10); }
+            if (palette == 6) { r = 245; g = 184; b = 65; }
+            else if (palette == 7) { r = 240; g = 100; b = 140; }
+            else if (palette == 1) { g = std::min(255, g + 55); b = std::max(g, b - 10); }
             else { r = std::min(255, r + 45); }
         }
         const int px = facing >= 0 ? x : 63 - x;
@@ -37,7 +39,7 @@ void drawSprite(int frame, float cx, float bottom, float sx, float sy, int facin
 void drawWhaleGirl(float cx, float cy, float scale, int facing, int palette,
     float time, float runPhase, bool airborne, float squash, float stretch, bool running, bool falling) {
     // AI 娘分别使用待机、奔跑、跳跃三组图，空中统一使用跳跃姿势。
-    if (palette >= 3) {
+    if (palette >= 3 && palette <= 5) {
         const int role = std::clamp(palette - 3, 0, 2);
         const float bob = airborne ? 0 : std::sin(running ? runPhase * 4 : time * 3) * scale;
         drawSprite(role + (airborne ? 6 : (running ? 3 : 0)), cx, cy + 29 * scale + bob,

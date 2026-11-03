@@ -1,5 +1,7 @@
 // 金币、重生费用与伪随机回归：验证单次领取、原子扣费、耗尽限制和随机参数稳定性。
 #include "World.h"
+#include "Account.h"
+#include "Menu.h"
 #include <algorithm>
 #include <cmath>
 #include <set>
@@ -17,6 +19,26 @@ bool sameParameters(const SpikeActivity& a, const SpikeActivity& b) {
 }
 }
 void runEconomyTests() {
+    // 临时账户与真实用户存档隔离，验证存盘、余额不足、去重购买及菜单返回。
+    Account wallet; wallet.ready = true;
+    wallet.path = std::filesystem::temp_directory_path() / ("game-wallet-test-" + std::to_string(GetCurrentProcessId()) + ".txt");
+    expect(wallet.earn(40) && wallet.coins == 40, "Wallet credit failed");
+    expect(!wallet.buy(1) && wallet.coins == 40, "Insufficient purchase charged coins");
+    expect(wallet.buy(0) && wallet.coins == 10 && wallet.owned == 1, "Purchase failed");
+    expect(wallet.buy(0) && wallet.coins == 10, "Owned item charged twice");
+    { std::ifstream file(wallet.path); int version, balance, owned; file >> version >> balance >> owned;
+      expect(version == 1 && balance == 10 && owned == 1, "Account persistence failed"); }
+    std::filesystem::remove(wallet.path);
+    Menu shop; shop.selected = 5; shop.activate();
+    expect(shop.page == Page::Shop && shop.itemCount() == 3, "Shop entry missing");
+    shop.selected = 2; shop.activate(); expect(shop.page == Page::Home, "Shop return failed");
+    // 无尽重生恢复金币并允许再次计数；闯关重生保留已吃状态。
+    World refill; refill.load(0, true);
+    refill.level.coins[0].collected = true; refill.scoring.collectCoin(0);
+    refill.die(L"刷新金币"); refill.respawn();
+    expect(!refill.level.coins[0].collected && refill.scoring.coinsCollected() == 0, "Endless coins not reset");
+    refill.scoring.collectCoin(0);
+    expect(refill.scoring.coinsCollected() == 1 && refill.scoring.total() == 0, "Reset coin cannot be collected again");
     // 无尽以最远距离计分，金币和战斗不加分，重生不扣费也不限制次数。
     World distanceWorld; distanceWorld.load(0, true);
     distanceWorld.scoring.advanceDistance(100);

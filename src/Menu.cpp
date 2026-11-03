@@ -1,5 +1,6 @@
 // 主页面实现：独立维护菜单状态，使用 EasyX 绘制可交互的游戏入口。
 #include "Menu.h"
+#include "Account.h"
 #include "CharacterRenderer.h"
 #pragma warning(push)
 #pragma warning(disable: 4201)
@@ -28,7 +29,7 @@ void spike(int x, int y, bool downward) {
 }
 int Menu::itemCount() const {
     // 闯关模式内有五关和返回按钮；无尽模式直接启动持续生成的地图。
-    return page == Page::Shop ? 1 : page == Page::Home ? 6 : (page == Page::Levels ? 6 : (page == Page::Settings ? 5 : (page == Page::Modes ? 3 : 0)));
+    return page == Page::Shop ? 3 : page == Page::Home ? 6 : (page == Page::Levels ? 6 : (page == Page::Settings ? 5 : (page == Page::Modes ? 3 : 0)));
 }
 bool Menu::enabled(int index) const {
     return index >= 0 && index < itemCount() && !(page == Page::Home && index == 1 && !hasSession);
@@ -39,7 +40,11 @@ std::wstring Menu::itemText(int index) const {
         const wchar_t* items[]{L"开始游戏", L"继续游戏", L"游戏模式", L"设置", L"退出游戏", L"游戏商店"};
         return index >= 0 && index < 6 ? items[index] : L"";
     }
-    if (page == Page::Shop) return L"返回主页面";
+    if (page == Page::Shop) {
+        if (index == 2) return L"返回主页面";
+        const wchar_t* names[]{L"暖阳金配色", L"玫瑰红配色"};
+        return std::wstring(names[index]) + ((account.owned & (1 << index)) ? L"  已拥有 / 装备" : (index == 0 ? L"  30 金币" : L"  50 金币"));
+    }
     if (page == Page::Modes) {
         const wchar_t* items[]{L"闯关模式", L"无尽模式", L"返回主页面"};
         return items[index];
@@ -52,7 +57,7 @@ std::wstring Menu::itemText(int index) const {
         if (index == 0) return std::wstring(L"操作提示   ") + (settings.showHints ? L"开启" : L"关闭");
         if (index == 1) {
             const wchar_t* colors[]{L"深海蓝", L"海盐青", L"暮光紫", L"Claude", L"GPT", L"Grok"};
-            return std::wstring(L"选择角色   ") + colors[settings.playerPalette];
+            return std::wstring(L"选择角色   ") + (settings.playerPalette == 6 ? L"暖阳金" : (settings.playerPalette == 7 ? L"玫瑰红" : colors[settings.playerPalette]));
         }
         if (index == 2) return L"帧率上限   " + std::to_wstring(settings.frameLimit) + L" FPS";
         if (index == 3) {
@@ -108,7 +113,12 @@ MenuAction Menu::activate() {
         // 五关都可直接选择；通关后还可在游戏内按 Enter 顺序进入下一关。
         if (selected < 5) { chosenLevel = selected; endlessMode = false; hasSession = true; page = Page::Playing; return MenuAction::Start; }
         back();
-    } else if (page == Page::Shop) { home(); } else if (page == Page::Settings) {
+    } else if (page == Page::Shop) {
+        // 原子保存成功才扣款，已拥有的配色再次点击只装备。
+        if (selected == 2) home();
+        else if (account.buy(selected)) { settings.playerPalette = 6 + selected; shopMessage = L"已装备！"; }
+        else shopMessage = L"余额不足或存档不可写，未扣款。";
+    } else if (page == Page::Settings) {
         // 第三步：修改可立即生效的设置，设置页面自身不改变世界状态。
         if (selected == 0) settings.showHints = !settings.showHints;
         else if (selected == 1) settings.playerPalette = (settings.playerPalette + 1) % 6;
@@ -146,7 +156,9 @@ void Menu::render() const {
     }
 
     if (page == Page::Shop) {
-        text(64, 195, L"商品筹备中，暂未开放购买。", 22, RGB(255, 220, 120));
+        text(64, 195, L"账户金币：" + std::to_wstring(account.coins), 22, RGB(255, 220, 120));
+        text(64, 440, shopMessage, 19, RGB(255, 220, 120));
+        drawWhaleGirl(650, 360, 3, 1, settings.playerPalette, 0, 0, false, 0, 0);
         return;
     }
     // 绘制步骤三：右侧说明当前关卡主题或玩法，不把选关入口放回主页面。

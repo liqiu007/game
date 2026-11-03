@@ -21,6 +21,7 @@ public:
     int chosenLevel = 0;
     bool endlessMode = false;
     GameSettings settings;
+    std::wstring shopMessage;
     // 按当前页面列出按钮，禁用没有游戏进度时的“继续游戏”。
     int itemCount() const;
     bool enabled(int index) const;

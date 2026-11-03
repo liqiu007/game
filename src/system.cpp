@@ -62,6 +62,11 @@ void ScoreSystem::advanceDistance(float pixels) {
     distanceMeters = std::max(distanceMeters, static_cast<int>(std::max(0.0f, pixels) / 10));
     score = distanceMeters * 20;
 }
+void ScoreSystem::resetCoins() {
+    // 重生只清理金币奖励编号，保持距离分数。
+    awarded.erase(std::remove_if(awarded.begin(), awarded.end(), [](std::size_t id) { return id >= 0xE0000000 && id < 0xF0000000; }), awarded.end());
+    coinCount = 0;
+}
 void ScoreSystem::spendRespawn() { score = std::max(0, score - RespawnCost); }
 void ScoreSystem::defeatEnemy(std::size_t index) { award(std::size_t{0xC0000000} + index, 200); }
 bool ScoreSystem::hasDefeatedEnemy() const {

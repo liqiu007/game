@@ -39,6 +39,7 @@ bool World::respawn() {
     // 扣费与复位作为一次操作：连点、活着时调用或体力耗尽都不会多扣分。
     if (!canRespawn()) return false;
     if (!endless) { --stamina; scoring.spendRespawn(); }
+    else { for (auto& coin : level.coins) coin.collected = false; scoring.resetCoins(); }
     resetPlayer();
     return true;
 }

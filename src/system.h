@@ -18,6 +18,7 @@ public:
     void collectCoin(std::size_t index);
     // 分数最多扣到零，不清除已领奖编号，防止重生刷金币或重复奖励。
     void spendRespawn();
+    void resetCoins();
     // 查询实时总分、已计分障碍数和死亡时冻结的分数。
     int total() const { return score; }
     // 无尽只按最远前进距离计分，回头和重生不会重复刷分。

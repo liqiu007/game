@@ -49,7 +49,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="src\Feedback.h" /><ClInclude Include="src\Sound.h" />
-    <ClInclude Include="src\World.h" /><ClInclude Include="src\Game.h" />
+    <ClInclude Include="src\Account.h" /><ClInclude Include="src\World.h" /><ClInclude Include="src\Game.h" />
     <ClInclude Include="src\Controls.h" /><ClInclude Include="src\DisplayLayout.h" />
     <ClInclude Include="src\AdventureMechanics.h" /><ClCompile Include="src\AdventureMechanics.cpp" />
     <ClInclude Include="src\AiSprites.h" /><ClInclude Include="src\CharacterSprites.h" />

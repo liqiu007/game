@@ -1,5 +1,6 @@
 // 游戏主循环与画面：收集输入、按固定步长更新世界，再绘制当前状态。
 #include "Game.h"
+#include "Account.h"
 #include "StarSystem.h"
 #include "Sound.h"
 #include "SpecialTraps.h"
@@ -38,6 +39,8 @@ bool down(int key) { return (GetAsyncKeyState(key) & 0x8000) != 0; }
 int Game::run(Preview preview) {
     // 第一步：创建窗口。正常启动停留主页面，截图模式直接进入指定页面或场景。
     const bool smokeTest = preview != Preview::None;
+    if (!smokeTest) account.load();
+    int pendingCoins = 0;
     // 正常启动使用时间种子；自动回归和预览保持固定种子，便于复现随机陷阱。
     if (!smokeTest) world = World(static_cast<std::uint32_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
     // 使用固定逻辑画布，窗口大小只影响最终缩放，不改变物理坐标。
@@ -221,7 +224,9 @@ int Game::run(Preview preview) {
                 accumulator += frameTime;
                 while (accumulator >= FixedStep) {
                     const auto jumpSerial = world.player.jumpSerial;
+                    const int coinsBefore = world.scoring.coinsCollected();
                     world.update({controls.left, controls.right, pendingJump, controls.shoot, controls.fastFall, controls.jumpHeld}, FixedStep);
+                    pendingCoins += world.scoring.coinsCollected() - coinsBefore;
                     if (!world.dead && world.player.jumpSerial != jumpSerial) sound.play(false);
                     pendingJump = false;
                     accumulator -= FixedStep;
@@ -230,6 +235,8 @@ int Game::run(Preview preview) {
         }
         if (world.won && menu.page == Page::Playing && (focused || smokeTest)) victoryAge += static_cast<float>(frameTime);
         if (smokeTest) victoryAge = 3;
+        // 仅真实游玩入账，保存失败保留待存金币并重试。
+        if (!smokeTest && pendingCoins > 0 && account.earn(pendingCoins)) pendingCoins = 0;
         // 死亡反馈单独推进，规则世界保持冻结；菜单、失焦和暂停不消耗动画。
         if (world.dead && !wasDead) {
             paused = false;
