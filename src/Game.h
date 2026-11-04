@@ -10,7 +10,7 @@ enum class Preview { None, Scene, Death, Spikes, Map, Home, Levels, Settings, Tr
 class Game {
 public:
     // 初始化窗口，持续处理输入、更新规则和绘图，退出时释放图形资源。
-    int run(Preview preview = Preview::None);
+    int run(Preview preview = Preview::None, bool debugSix = false);
 private:
     // 世界保存游戏规则状态；暂停只控制主循环是否推进世界。
     World world;

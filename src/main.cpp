@@ -6,6 +6,9 @@ int main(int argc, char* argv[]) {
     // 第一步：自测只运行规则测试，不创建图形窗口，退出码供命令行检查。
     if (argc > 1 && std::string_view(argv[1]) == "--self-test") return game::runSelfTests();
     game::Game application;
+    // 第六关交互调试直接启动，不修改玩家正式存档。
+    if (argc > 1 && std::string_view(argv[1]) == "--debug-level-6") return application.run(game::Preview::None, true);
+    if (argc > 1 && std::string_view(argv[1]) == "--debug-level-6-smoke-test") return application.run(game::Preview::Scene, true);
     // 第二步：解析可选截图参数；没有参数时进入正常可操作的游戏。
     game::Preview preview = game::Preview::None;
     if (argc > 1) {

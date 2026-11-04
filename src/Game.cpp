@@ -36,7 +36,7 @@ void label(int x, int y, const std::wstring& text, int size, COLORREF color) {
 bool down(int key) { return (GetAsyncKeyState(key) & 0x8000) != 0; }
 }
 
-int Game::run(Preview preview) {
+int Game::run(Preview preview, bool debugSix) {
     // 第一步：创建窗口。正常启动停留主页面，截图模式直接进入指定页面或场景。
     const bool smokeTest = preview != Preview::None;
     // 昵称登录在图形窗口创建后执行。
@@ -149,6 +149,12 @@ int Game::run(Preview preview) {
         }
         world.player.body = world.level.goal; world.update({}, FixedStep);
     }
+    if (debugSix) {
+        // 使用内存调试账户，直接进入第六关起点；正式昵称档案不参与读写。
+        account = Account{}; account.nickname = L"第六关调试"; account.unlocked = 15;
+        world.load(5); menu.chosenLevel = 5; menu.endlessMode = false; menu.page = Page::Playing;
+        SetWindowTextW(window, L"game | 第六关调试");
+    }
     using Clock = std::chrono::steady_clock;
     auto previous = Clock::now();
     double accumulator = 0;
@@ -249,12 +255,12 @@ int Game::run(Preview preview) {
                 }
             } else { accumulator = 0; pendingJump = false; }
         }
-        if (!smokeTest && world.won && !world.endless && !progressSaved)
+        if (!smokeTest && !debugSix && world.won && !world.endless && !progressSaved)
             progressSaved = account.complete(world.chapter, evaluateStars(world).count, world.scoring.total());
         if (world.won && menu.page == Page::Playing && (focused || smokeTest)) victoryAge += static_cast<float>(frameTime);
         if (smokeTest) victoryAge = 3;
         // 仅真实游玩入账，保存失败保留待存金币并重试。
-        if (!smokeTest && pendingCoins > 0 && account.earn(pendingCoins)) pendingCoins = 0;
+        if (!smokeTest && !debugSix && pendingCoins > 0 && account.earn(pendingCoins)) pendingCoins = 0;
         // 死亡反馈单独推进，规则世界保持冻结；菜单、失焦和暂停不消耗动画。
         if (world.dead && !wasDead) {
             paused = false;
