@@ -31,9 +31,9 @@ bool Account::login(const std::wstring& name, std::filesystem::path root) {
     if (exists) {
         std::ifstream file(candidate.path); int version = 0;
         if (!(file >> version >> candidate.coins >> candidate.owned >> candidate.unlocked) ||
-            version != 2 || candidate.coins < 0 || candidate.owned < 0 || candidate.owned > 3 ||
-            candidate.unlocked < 1 || candidate.unlocked > 5) return false;
-        for (int i = 0; i < 5; ++i)
+            (version != 2 && version != 3) || candidate.coins < 0 || candidate.owned < 0 || candidate.owned > 3 ||
+            candidate.unlocked < 1 || candidate.unlocked > (version == 2 ? 5 : 15)) return false;
+        for (int i = 0; i < (version == 2 ? 5 : 15); ++i)
             if (!(file >> candidate.bestStars[i] >> candidate.bestScores[i]) ||
                 candidate.bestStars[i] < 0 || candidate.bestStars[i] > 3 || candidate.bestScores[i] < 0) return false;
     }
@@ -49,8 +49,8 @@ bool Account::save(int balance, int items) {
     auto temporary = path; temporary += L".tmp";
     {
         std::ofstream file(temporary, std::ios::trunc);
-        file << 2 << ' ' << balance << ' ' << items << ' ' << unlocked;
-        for (int i = 0; i < 5; ++i) file << ' ' << bestStars[i] << ' ' << bestScores[i];
+        file << 3 << ' ' << balance << ' ' << items << ' ' << unlocked;
+        for (int i = 0; i < 15; ++i) file << ' ' << bestStars[i] << ' ' << bestScores[i];
         file.flush(); if (!file) return false;
     }
     if (!MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return false;
@@ -66,9 +66,9 @@ bool Account::buy(int item) {
 }
 bool Account::complete(int chapter, int stars, int score) {
     // 只接受已经开放的关卡；任何星数通关都解锁下一关，最高纪录只增不减。
-    if (!ready || chapter < 0 || chapter >= unlocked || chapter > 4 || stars < 0 || stars > 3 || score < 0) return false;
+    if (!ready || chapter < 0 || chapter >= unlocked || chapter > 14 || stars < 0 || stars > 3 || score < 0) return false;
     const Account previous = *this;
-    unlocked = std::max(unlocked, std::min(5, chapter + 2));
+    unlocked = std::max(unlocked, std::min(15, chapter + 2));
     bestStars[chapter] = std::max(bestStars[chapter], stars);
     bestScores[chapter] = std::max(bestScores[chapter], score);
     if (save(coins, owned)) return true;

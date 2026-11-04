@@ -249,7 +249,7 @@ int runSelfTests() {
         menu.activate();
         check(menu.page == Page::Modes && menu.itemCount() == 3, "Home must open game modes before level selection");
         menu.activate();
-        check(menu.page == Page::Levels && menu.itemCount() == 6, "Campaign must contain five levels and back");
+        check(menu.page == Page::Levels && menu.itemCount() == 16, "Campaign must contain five levels and back");
         check(menu.activate() == MenuAction::Start && menu.page == Page::Playing && menu.hasSession, "Level selection must start the only level");
         menu.home();
         check(menu.selected == 1 && menu.activate() == MenuAction::Continue, "Returning home must allow continuing current session");

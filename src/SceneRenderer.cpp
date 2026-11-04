@@ -181,9 +181,11 @@ void drawCombatScene(const World& w) {
         fill(static_cast<int>(r.x - camera), static_cast<int>(r.y), static_cast<int>(r.right() - camera), static_cast<int>(r.bottom()), c);
     };
     for (const auto& enemy : w.level.enemies) if (enemy.alive) {
-        box(enemy.body, RGB(239, 133, 76));
-        box({enemy.body.x + 4, enemy.body.y + 7, 5, 5}, RGB(255, 239, 194));
-        box({enemy.body.x + 17, enemy.body.y + 7, 5, 5}, RGB(255, 239, 194));
+        // AI 形象与碰撞盒分离，名字标识怪物种类。
+        drawWhaleGirl(enemy.body.x + 13 - w.cameraX(), enemy.body.y + 14, 0.75f, enemy.direction, 3 + std::max(0, enemy.avatar), w.elapsed, 0, false, 0, 0);
+        const wchar_t* names[]{L"Claude", L"GPT", L"Grok"};
+        settextstyle(12, 0, L"Microsoft YaHei"); settextcolor(RGB(255,220,170));
+        outtextxy(static_cast<int>(enemy.body.x - w.cameraX()), static_cast<int>(enemy.body.y - 18), names[std::max(0, enemy.avatar)]);
     }
     for (const auto& saw : w.level.saws) {
         const int x = static_cast<int>(saw.body.x + 12 - camera), y = static_cast<int>(saw.body.y + 12);

@@ -28,11 +28,11 @@ void spike(int x, int y, bool downward) {
 }
 }
 int Menu::itemCount() const {
-    // 闯关模式内有五关和返回按钮；无尽模式直接启动持续生成的地图。
-    return page == Page::Shop ? 3 : page == Page::Home ? 6 : (page == Page::Levels ? 6 : (page == Page::Settings ? 5 : (page == Page::Modes ? 3 : 0)));
+    // 闯关模式内有十五关和返回按钮；无尽模式直接启动持续生成的地图。
+    return page == Page::Shop ? 3 : page == Page::Home ? 6 : (page == Page::Levels ? 16 : (page == Page::Settings ? 5 : (page == Page::Modes ? 3 : 0)));
 }
 bool Menu::enabled(int index) const {
-    return index >= 0 && index < itemCount() && !(page == Page::Levels && index < 5 && index >= account.unlocked) && !(page == Page::Home && index == 1 && !hasSession);
+    return index >= 0 && index < itemCount() && !(page == Page::Levels && index < 15 && index >= account.unlocked) && !(page == Page::Home && index == 1 && !hasSession);
 }
 std::wstring Menu::itemText(int index) const {
     // 为每种页面生成实际状态文字；设置按钮直接显示当前值。
@@ -76,6 +76,13 @@ void Menu::move(int direction) {
 }
 int Menu::hit(int x, int y) const {
     // 间隔区域不算点击，按钮最右和最下边缘也不越界到下一项。
+    // 正方形卡片的鼠标命中与显示位置一致。
+    if (page == Page::Levels) {
+        if (x >= 64 && x < 250 && y >= 550 && y < 590) return 15;
+        if (x < 64 || y < 210) return -1;
+        int col = (x - 64) / 170, row = (y - 210) / 108;
+        return col < 5 && row < 3 && (x - 64) % 170 < 96 && (y - 210) % 108 < 96 ? row * 5 + col : -1;
+    }
     if (x < ButtonX || x >= ButtonX + ButtonWidth || y < ButtonY) return -1;
     const int index = (y - ButtonY) / ButtonStep;
     return index < itemCount() && (y - ButtonY) % ButtonStep < ButtonHeight ? index : -1;
@@ -110,8 +117,8 @@ MenuAction Menu::activate() {
         else if (selected == 1) { endlessMode = true; hasSession = true; page = Page::Playing; return MenuAction::Start; }
         else home();
     } else if (page == Page::Levels) {
-        // 五关都可直接选择；通关后还可在游戏内按 Enter 顺序进入下一关。
-        if (selected < 5) { chosenLevel = selected; endlessMode = false; hasSession = true; page = Page::Playing; return MenuAction::Start; }
+        // 十五关按进度解锁；通关后还可在游戏内按 Enter 顺序进入下一关。
+        if (selected < 15) { chosenLevel = selected; endlessMode = false; hasSession = true; page = Page::Playing; return MenuAction::Start; }
         back();
     } else if (page == Page::Shop) {
         // 原子保存成功才扣款，已拥有的配色再次点击只装备。
@@ -140,9 +147,21 @@ void Menu::render() const {
     const wchar_t* title = page == Page::Shop ? L"游戏商店" : page == Page::Home ? L"极限试炼" : (page == Page::Levels ? L"闯关 / 选择关卡" : (page == Page::Modes ? L"游戏模式" : L"游戏设置"));
     text(60, 86, title, 52, RGB(239, 245, 255));
     text(64, 160, page == Page::Home ? L"每一次重来，都离终点更近。" :
-        (page == Page::Levels ? L"五个世界，五种考验。选择后从该关起点开始。" :
-        (page == Page::Modes ? L"完成五章挑战，或不断突破自己的极限。" : L"设置即时生效；大窗口自动适配屏幕。")), 18, RGB(153, 178, 202));
+        (page == Page::Levels ? L"十五关挑战，逐关解锁。选择后从该关起点开始。" :
+        (page == Page::Modes ? L"完成十五关挑战，或不断突破自己的极限。" : L"设置即时生效；大窗口自动适配屏幕。")), 18, RGB(153, 178, 202));
 
+    // 十五关以五列三行卡片排列，锁定关卡保持灰色。
+    if (page == Page::Levels) {
+        for (int i = 0; i < 15; ++i) {
+            int x = 64 + i % 5 * 170, y = 210 + i / 5 * 108;
+            fill(x,y,x+96,y+96,i == selected ? RGB(36,100,125) : RGB(24,36,53));
+            text(x+12,y+18,itemText(i),24,enabled(i) ? RGB(239,245,255) : RGB(89,104,122));
+            text(x+12,y+60,enabled(i) ? L"挑战" : L"未解锁",15,RGB(153,178,202));
+        }
+        text(64,550,L"返回游戏模式",20,selected == 15 ? RGB(95,213,255) : RGB(153,178,202));
+        text(300,560,L"W / S 选择 · Enter 确认 · Esc 返回",16,RGB(153,178,202));
+        return;
+    }
     // 绘制步骤二：按钮根据键盘选中或鼠标悬停显示高亮，无进度时继续按钮置灰。
     for (int i = 0; i < itemCount(); ++i) {
         const int y = ButtonY + i * ButtonStep;
@@ -152,7 +171,7 @@ void Menu::render() const {
         rectangle(ButtonX, y, ButtonX + ButtonWidth, y + ButtonHeight);
         if (focused) fill(ButtonX, y, ButtonX + 4, y + ButtonHeight, RGB(95, 213, 255));
         text(ButtonX + 22, y + 10, itemText(i), 23, active ? RGB(239, 245, 255) : RGB(89, 104, 122));
-        if (page == Page::Levels && i < 5 && i >= account.unlocked) {
+        if (page == Page::Levels && i < 15 && i >= account.unlocked) {
             // 用几何线条画锁，不依赖字体是否包含锁字符。
             setlinecolor(RGB(150, 160, 175)); setfillcolor(RGB(100, 110, 125));
             arc(ButtonX + 307, y + 8, ButtonX + 327, y + 29, 0, 3.14159265);
@@ -171,9 +190,9 @@ void Menu::render() const {
     fill(492, 188, 900, 544, RGB(21, 32, 49));
     const wchar_t* names[]{L"小试牛刀", L"断桥危机", L"敌人来袭", L"小心激光", L"终章：BOSS战"};
     const wchar_t* themes[]{L"青翠山谷 / 尖刺入门", L"暮色峡谷 / 断桥与锯轮", L"幽暗森林 / 巡逻敌人", L"霓虹实验室 / 定时激光", L"熔岩要塞 / BOSS 弹幕"};
-    const int chapter = page == Page::Levels && selected < 5 ? selected : chosenLevel;
-    text(520, 210, page == Page::Modes && selected == 1 ? L"无尽模式" : names[chapter], 25, RGB(239, 245, 255));
-    text(520, 250, page == Page::Modes && selected == 1 ? L"持续生成 / 距离与积分挑战" : themes[chapter], 17, RGB(153, 178, 202));
+    const int chapter = page == Page::Levels && selected < 15 ? selected : chosenLevel;
+    text(520, 210, page == Page::Modes && selected == 1 ? L"无尽模式" : names[chapter % 5], 25, RGB(239, 245, 255));
+    text(520, 250, page == Page::Modes && selected == 1 ? L"持续生成 / 距离与积分挑战" : themes[chapter % 5], 17, RGB(153, 178, 202));
     fill(536, 432, 860, 452, RGB(52, 71, 94));
     fill(650, 304, 850, 314, RGB(52, 71, 94));
     for (int i = 0; i < 4; ++i) { spike(674 + i * 26, 432, false); spike(674 + i * 26, 314, true); }

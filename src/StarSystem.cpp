@@ -13,15 +13,15 @@ namespace game {
 StarRules starRules(int chapter) {
     // 试玩暂定值集中在这里；后两关的时间仅作参考，不参与战斗星判定。
     constexpr StarRules rules[]{{90, 12}, {120, 14}, {150, 16}, {180, 18}, {240, 20}};
-    return rules[std::clamp(chapter, 0, 4)];
+    return rules[std::clamp(chapter, 0, 14) % 5];
 }
 StarResult evaluateStars(const World& world) {
     // 只在闯关成功后授星，无尽、死亡和未通关状态都不提前结算。
     StarResult result;
     if (!world.won || world.dead || world.endless) return result;
     const auto rules = starRules(world.chapter);
-    result.achieved[0] = world.chapter < 3 ? world.elapsed <= rules.timeLimit :
-        (world.chapter == 3 ? world.scoring.hasDefeatedEnemy() : world.scoring.hasDefeatedBoss());
+    result.achieved[0] = world.chapter % 5 < 3 ? world.elapsed <= rules.timeLimit :
+        (world.chapter % 5 == 3 ? world.scoring.hasDefeatedEnemy() : world.scoring.hasDefeatedBoss());
     result.achieved[1] = std::any_of(world.level.feathers.begin(), world.level.feathers.end(),
         [](const auto& rice) { return rice.collected; });
     result.achieved[2] = world.scoring.coinsCollected() >= rules.coinTarget;
@@ -88,15 +88,15 @@ void drawVictoryScreen(const World& world, float age) {
     centered(261, L"用时 " + std::to_wstring(static_cast<int>(std::ceil(world.elapsed))) + L" 秒    死亡 " +
         std::to_wstring(world.deaths) + L" 次", 20, RGB(171, 190, 211));
     // 第二步：逐项显示获星原因，独立达成任意一项都加一星，无需按顺序领取。
-    const std::wstring first = world.chapter < 3 ? L"限时通关：不超过 " + std::to_wstring(rules.timeLimit) + L" 秒" :
-        (world.chapter == 3 ? L"战斗目标：击败至少一名巡逻敌人" : L"战斗目标：击败最终 BOSS");
+    const std::wstring first = world.chapter % 5 < 3 ? L"限时通关：不超过 " + std::to_wstring(rules.timeLimit) + L" 秒" :
+        (world.chapter % 5 == 3 ? L"战斗目标：击败至少一名巡逻敌人" : L"战斗目标：击败最终 BOSS");
     const std::wstring objectives[]{first, L"探索目标：吃到本关白饭", L"金币目标：" +
         std::to_wstring(world.scoring.coinsCollected()) + L" / " + std::to_wstring(rules.coinTarget) + L" 枚"};
     for (int i = 0; i < 3; ++i)
         textAt(194, 310 + i * 48, (result.achieved[i] ? L"已达成   " : L"未达成   ") + objectives[i], 23,
             result.achieved[i] ? RGB(125, 228, 175) : RGB(154, 170, 192));
     // 第三步：保留快捷键，同时提供可点击的下一关、重玩与首页按钮。
-    const wchar_t* labels[]{world.chapter < 4 ? L"下一关  Enter" : L"返回首页  Enter", L"重玩本关  R", L"主页面  Esc"};
+    const wchar_t* labels[]{world.chapter < 14 ? L"下一关  Enter" : L"返回首页  Enter", L"重玩本关  R", L"主页面  Esc"};
     for (int i = 0; i < 3; ++i) {
         const auto& r = buttons[i];
         setfillcolor(i == 0 ? RGB(49, 104, 108) : RGB(44, 60, 82));

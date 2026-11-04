@@ -2,6 +2,9 @@
 #include "World.h"
 #include "AdventureMechanics.h"
 #include <algorithm>
+#include <random>
+// 每次创建怪物独立抽签，重生保留形象。
+namespace { int avatar() { static std::mt19937 rng(std::random_device{}()); return std::uniform_int_distribution<int>(0,2)(rng); } }
 
 namespace game {
 namespace {
@@ -17,10 +20,12 @@ void addRoadCoins(Level& level, std::size_t index) {
 }
 Level Level::campaign(int index) {
     // 第一步：复用基础跳跃间距，按关卡加入不同机制，避免随机生成不可达路线。
+    const int stage = std::clamp(index, 0, 14);
+    index = stage % 5;
     Level result = tutorial();
     const wchar_t* names[]{L"小试牛刀", L"断桥危机", L"敌人来袭", L"小心激光", L"终章：BOSS战"};
     result.theme = std::clamp(index, 0, 4);
-    result.name = names[result.theme];
+    result.name = L"第" + std::to_wstring(stage + 1) + L"关 · " + names[result.theme];
     // 第二步：断桥关收窄桥面并加入踩踏后坍塌的平台与往返锯轮。
     if (index == 1) {
         for (std::size_t i = 1; i < result.platforms.size(); ++i) result.platforms[i].w -= 12;
@@ -48,12 +53,21 @@ Level Level::campaign(int index) {
     }
     // 高路提供星羽探索奖励，各关使用不同移动方向、定时平台或预警落刺。
     buildAdventureRoute(result);
+    // 扩大地图，保持安全跳跃间距，后续章节增加路线长度。
+    for (int i = 0; i < 6 + stage / 5 * 3; ++i) {
+        float x = result.platforms.back().right() + 60, y = 360 + (i % 3) * 40.0f;
+        result.platforms.push_back({x, y, 190, 24}); result.platformScores.push_back(250);
+        if (i % 2 == 0) result.enemies.push_back({{x + 80, y - 28, 26, 28}, x + 30, x + 155});
+    }
+    const auto end = result.platforms.back();
+    result.goal = {end.x + 130, end.y - 52, 32, 52}; result.width = end.right();
+    for (auto& enemy : result.enemies) enemy.avatar = avatar();
     for (std::size_t i = 0; i < result.platforms.size(); ++i) addRoadCoins(result, i);
     return result;
 }
 void World::load(int index, bool endlessMode) {
     // 加载模式时清除上一局状态；继续游戏不调用这里，因此不会丢失进度。
-    chapter = std::clamp(index, 0, 4);
+    chapter = std::clamp(index, 0, 14);
     endless = endlessMode;
     level = Level::campaign(chapter);
     if (endless) {
@@ -108,6 +122,7 @@ void World::extendEndless() {
         }
         level.width = x + width;
     }
+    for (auto& enemy : level.enemies) if (enemy.avatar < 0) enemy.avatar = avatar();
     // 新区域分组后恢复旧组计时，防止生成地形时已经触发的机关重新启动。
     spikeActivity.rebuild(level.spikes, spikeRandom);
 }

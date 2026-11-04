@@ -7,7 +7,7 @@ namespace game {
 class Account {
 public:
     int coins = 0, owned = 0, unlocked = 1;
-    std::array<int, 5> bestStars{}, bestScores{};
+    std::array<int, 15> bestStars{}, bestScores{};
     std::wstring nickname;
     bool ready = false;
     std::filesystem::path path;

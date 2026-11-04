@@ -40,7 +40,7 @@ void runEconomyTests() {
     expect(wallet.buy(0) && wallet.coins == 10 && wallet.owned == 1, "Purchase failed");
     expect(wallet.buy(0) && wallet.coins == 10, "Owned item charged twice");
     { std::ifstream file(wallet.path); int version, balance, owned; file >> version >> balance >> owned;
-      expect(version == 2 && balance == 10 && owned == 1, "Account persistence failed"); }
+      expect(version == 3 && balance == 10 && owned == 1, "Account persistence failed"); }
     std::filesystem::remove(wallet.path);
     Menu shop; shop.selected = 5; shop.activate();
     expect(shop.page == Page::Shop && shop.itemCount() == 3, "Shop entry missing");
@@ -76,7 +76,7 @@ void runEconomyTests() {
     expect(!mixed.spikeActivity.traps[1].retractable, "Respawn changed fixed spike type");
     // 第一组：开局不扣体力、不自动送金币；真实移动收集两枚，每枚 50 分且只领一次。
     World w; w.load(0);
-    expect(w.stamina == 10 && w.scoring.total() == 0 && w.level.coins.size() == 29, "New challenge must start at ten stamina with road coins");
+    expect(w.stamina == 10 && w.scoring.total() == 0 && w.level.coins.size() == 47, "New challenge must start at ten stamina with road coins");
     ticks(w, 3); expect(w.scoring.total() == 0, "Spawn must not overlap a coin");
     expect(!w.respawn() && w.stamina == 10, "Alive player cannot spend a respawn");
     ticks(w, 30, {false, true}); ticks(w, 5);
@@ -150,3 +150,4 @@ void runEconomyTests() {
         "Endless extension must preserve old spike parameters and state");
 }
 }
+

@@ -220,7 +220,7 @@ int Game::run(Preview preview) {
             if (victory == VictoryAction::Home) { menu.home(); accumulator = 0; pendingJump = false; }
             // 闯关结束后顺序进入下一关；最终关回主页面，无尽模式不会出现通关面板。
             if (world.won && (pressed(VK_RETURN) || victory == VictoryAction::Next)) {
-                if (world.chapter < 4 && world.chapter + 1 < account.unlocked) { world.load(world.chapter + 1); menu.chosenLevel = world.chapter; }
+                if (world.chapter < 14 && world.chapter + 1 < account.unlocked) { world.load(world.chapter + 1); menu.chosenLevel = world.chapter; }
                 else menu.home();
                 accumulator = 0; pendingJump = false;
             }

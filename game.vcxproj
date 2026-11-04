@@ -44,7 +44,7 @@
     </ClCompile>
     <Link><SubSystem>Console</SubSystem>
       <AdditionalLibraryDirectories>$(EasyXRoot)\lib\$(EasyXArchitecture);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -70,4 +70,5 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
+
 

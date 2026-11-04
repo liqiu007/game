@@ -81,9 +81,17 @@ void runExtendedTests() {
     const wchar_t* names[]{L"小试牛刀", L"断桥危机", L"敌人来袭", L"小心激光", L"终章：BOSS战"};
     for (int i = 0; i < 5; ++i) {
         World w; w.load(i);
-        require(w.level.theme == i && w.level.name == names[i], "Five chapters must have exact names and distinct themes");
+        require(w.level.theme == i && w.level.name.find(names[i]) != std::wstring::npos, "Five chapters must have exact names and distinct themes");
         require(!w.dead && !w.won && w.player.body.x == 60, "Loading a chapter must start cleanly");
     }
+    // 新章节保持主题循环、地图递增，所有敌人形象均来自三选一。
+    for (int i = 0; i < 15; ++i) {
+        World expanded; expanded.load(i);
+        require(expanded.chapter == i && expanded.level.width > 3600, "Expanded chapter missing");
+        for (const auto& enemy : expanded.level.enemies) require(enemy.avatar >= 0 && enemy.avatar < 3, "Invalid AI monster");
+    }
+    Menu cards; cards.page = Page::Levels;
+    cards.selected = 0; cards.hover(165,211); require(cards.selected == 0, "Card gap changed selection");
     Menu menu; menu.page = Page::Modes; menu.selected = 1;
     require(menu.activate() == MenuAction::Start && menu.endlessMode, "Endless mode must start directly");
     menu.home(); menu.page = Page::Levels; menu.selected = 4;
@@ -115,12 +123,12 @@ void runExtendedTests() {
     laser.restart(); laser.elapsed = 2; laser.player.body = {430, 462, 24, 28}; steps(laser, 1);
     require(!laser.dead, "Inactive laser must allow passage");
     // 第五组：BOSS 存活时锁定终点，命中最后一点生命后开放出口，弹幕仍可伤人。
-    World boss; boss.load(4); boss.player.body = {2180, 332, 24, 28}; steps(boss, 1);
+    World boss; boss.load(4); boss.player.body = boss.level.goal; steps(boss, 1);
     require(!boss.won, "Living boss must lock goal");
     boss.restart(); boss.bossHealth = 1; boss.player.body = {2070, 332, 24, 28};
     steps(boss, 25, {false, false, false, true});
     require(boss.bossHealth == 0 && !boss.dead && boss.scoring.total() >= 1000, "Shooting must defeat boss and grant reward");
-    boss.player.body = {2180, 332, 24, 28}; steps(boss, 1);
+    boss.player.body = boss.level.goal; steps(boss, 1);
     require(boss.won, "Defeated boss must unlock goal");
     boss.restart(); boss.player.body = {2070, 332, 24, 28};
     boss.projectiles.push_back({boss.player.body, 0, 0, 1, true}); steps(boss, 1);
@@ -160,7 +168,9 @@ void runExtendedTests() {
             }
             require(defeated, "Full-health BOSS must be defeatable while dodging projectiles");
         }
-        steps(route, 50, {false, true, false, true});
+        for (std::size_t i = 10; i < route.level.platforms.size(); ++i)
+            require(travelTo(route, route.level.platforms[i].x + 25), "Expanded route blocked");
+        steps(route, 60, {false, true, false, true});
         require(route.won && !route.dead, "Each campaign chapter must reach its actual finish");
     }
 }

@@ -47,7 +47,7 @@ struct Feather { Rect body; bool collected = false; };
 struct Coin { Rect body; bool collected = false; };
 // 各类机关的数据与运行状态分开保存，重生时恢复初始状态。
 struct FragilePlatform { std::size_t index; float timer = 0.65f; bool touched = false, collapsed = false; };
-struct Enemy { Rect body; float left, right, speed = 65; int direction = 1; bool alive = true; };
+struct Enemy { Rect body; float left, right, speed = 65; int direction = 1; bool alive = true; int avatar = -1; };
 struct Laser { Rect body; float period = 3.4f, activeSeconds = 1.2f, offset = 0; };
 struct Saw { Rect body; float originX, range, rate; };
 struct Projectile { Rect body; float vx, vy, life = 3; bool hostile = false; };
@@ -99,7 +99,7 @@ struct Level {
     std::vector<Coin> coins;
     // 创建第一关的基础路线：10 个平台、4 组地面尖刺、倒刺与夹击机关。
     static Level tutorial();
-    // 闯关模式按编号创建五种主题；无尽模式在前方继续生成可跳跃的平台。
+    // 闯关模式按编号创建十五关、循环五种主题；无尽模式在前方继续生成可跳跃的平台。
     static Level campaign(int index);
 };
 
