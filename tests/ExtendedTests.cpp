@@ -91,6 +91,11 @@ void runExtendedTests() {
         for (const auto& enemy : expanded.level.enemies) require(enemy.avatar >= 0 && enemy.avatar < 3, "Invalid AI monster");
     }
     Menu cards; cards.page = Page::Levels;
+    // 覆盖所有卡片文字，防止扩充关卡后旧名称数组发生越界。
+    for (int i = 0; i < 15; ++i)
+        require(cards.itemText(i) == std::to_wstring(i + 1) + L" 关", "Level card title invalid");
+    require(cards.itemText(15) == L"返回游戏模式", "Back card title invalid");
+    require(cards.itemText(-1).empty() && cards.itemText(16).empty(), "Invalid card index accepted");
     cards.selected = 0; cards.hover(165,211); require(cards.selected == 0, "Card gap changed selection");
     Menu menu; menu.page = Page::Modes; menu.selected = 1;
     require(menu.activate() == MenuAction::Start && menu.endlessMode, "Endless mode must start directly");

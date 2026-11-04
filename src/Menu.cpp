@@ -35,6 +35,8 @@ bool Menu::enabled(int index) const {
     return index >= 0 && index < itemCount() && !(page == Page::Levels && index < 15 && index >= account.unlocked) && !(page == Page::Home && index == 1 && !hasSession);
 }
 std::wstring Menu::itemText(int index) const {
+    // 先检查索引，避免无效选项访问页面名称数组。
+    if (index < 0 || index >= itemCount()) return L"";
     // 为每种页面生成实际状态文字；设置按钮直接显示当前值。
     if (page == Page::Home) {
         const wchar_t* items[]{L"开始游戏", L"继续游戏", L"游戏模式", L"设置", L"退出游戏", L"游戏商店"};
@@ -50,8 +52,8 @@ std::wstring Menu::itemText(int index) const {
         return items[index];
     }
     if (page == Page::Levels) {
-        const wchar_t* items[]{L"01   小试牛刀", L"02   断桥危机", L"03   敌人来袭", L"04   小心激光", L"05   终章：BOSS战", L"返回游戏模式"};
-        return items[index];
+        // 十五张卡片动态生成短标题，返回按钮独立处理。
+        return index == 15 ? L"返回游戏模式" : std::to_wstring(index + 1) + L" 关";
     }
     if (page == Page::Settings) {
         if (index == 0) return std::wstring(L"操作提示   ") + (settings.showHints ? L"开启" : L"关闭");
