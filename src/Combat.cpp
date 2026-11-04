@@ -40,7 +40,9 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
         if (!enemy.alive) continue;
         enemy.axeFlash = std::max(0.0f, enemy.axeFlash - dt);
         const float dx = w.player.body.x - enemy.body.x;
-        if (std::abs(dx) > 520 || std::abs(w.player.body.y - enemy.body.y) > 48) continue;
+        const bool rangedBan = enemy.avatar == 0;
+        if (std::abs(dx) > (rangedBan ? 900 : 520) ||
+            std::abs(w.player.body.y - enemy.body.y) > (rangedBan ? 320 : 48)) continue;
         enemy.attackTimer += dt;
         const int direction = dx < 0 ? -1 : 1;
         if (enemy.avatar == 2) {
@@ -54,9 +56,17 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
             enemy.attackTimer = 0;
             static std::mt19937 rng(std::random_device{}());
             const auto kind = enemy.avatar == 0 ? ShotKind::Ban : (std::uniform_int_distribution<int>(0,1)(rng) ? ShotKind::Equation : ShotKind::Smoothness);
-            const float width = kind == ShotKind::Ban ? 120.0f : (kind == ShotKind::Equation ? 150.0f : 270.0f);
-            const float height = kind == ShotKind::Ban ? 80.0f : 40.0f;
-            w.projectiles.push_back({{direction > 0 ? enemy.body.right() : enemy.body.x - width, enemy.body.y - height + 28, width, height}, 130.0f * direction, 0, 4, true, kind});
+            const float width = kind == ShotKind::Ban ? static_cast<float>(BanWidth) : (kind == ShotKind::Equation ? 150.0f : 270.0f);
+            const float height = kind == ShotKind::Ban ? static_cast<float>(BanHeight) : 40.0f;
+            // Claude 出手时瞄准玩家所在方向；投掷后沿固定方向飞行，可跳跃躲开。
+            float vx = 130.0f * direction, vy = 0, life = 4;
+            if (rangedBan) {
+                const float dy = w.player.body.y - enemy.body.y;
+                const float length = std::max(1.0f, std::sqrt(dx * dx + dy * dy));
+                vx = dx / length * 240; vy = dy / length * 240; life = 5;
+                enemy.axeFlash = 0.35f;
+            }
+            w.projectiles.push_back({{direction > 0 ? enemy.body.right() : enemy.body.x - width, enemy.body.y - height + 28, width, height}, vx, vy, life, true, kind});
         }
     }
     // 第四步：J 可连续射击，朝向跟随最后一次水平移动；射击有冷却时间。

@@ -152,7 +152,7 @@ int Game::run(Preview preview, bool debugSix) {
     if (preview == Preview::Weapons) {
         // 素材验证场景不推进碰撞，也不读写正式存档。
         world.load(6); world.player.body = {60,522,24,28};
-        world.projectiles = {{{180,240,120,80},0,0,4,true,ShotKind::Ban}, {{360,240,150,40},0,0,4,true,ShotKind::Equation}, {{560,300,270,40},0,0,4,true,ShotKind::Smoothness}};
+        world.projectiles = {{{100,180,static_cast<float>(BanWidth),static_cast<float>(BanHeight)},0,0,4,true,ShotKind::Ban}, {{360,240,150,40},0,0,4,true,ShotKind::Equation}, {{560,300,270,40},0,0,4,true,ShotKind::Smoothness}};
         world.level.enemies = {{{430,430,26,28},400,470,0,1,true,2,0,0.3f}};
     }
     if (debugSix) {

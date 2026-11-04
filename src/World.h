@@ -11,6 +11,8 @@ namespace game {
 // 固定窗口尺寸与模拟步长；地图宽度独立于窗口宽度。
 inline constexpr int ScreenWidth = 960;
 inline constexpr int ScreenHeight = 640;
+// 封禁图片绘制与碰撞共用尺寸，保持原图三比二比例。
+inline constexpr int BanWidth = 240, BanHeight = 160;
 inline constexpr float FixedStep = 1.0f / 120.0f;
 
 // 世界矩形以左上角定位，右边缘和下边缘用于碰撞与距离计算。

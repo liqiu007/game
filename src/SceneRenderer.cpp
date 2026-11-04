@@ -231,7 +231,7 @@ void drawCombatScene(const World& w) {
     // 图片直接从嵌入资源读取，单独分发 EXE 也能显示用户提供的素材。
     static IMAGE banImage;
     static bool loaded = false;
-    if (!loaded) { loadimage(&banImage, L"PNG", MAKEINTRESOURCE(101), 120, 80); loaded = true; }
+    if (!loaded) { loadimage(&banImage, L"PNG", MAKEINTRESOURCE(101), BanWidth, BanHeight); loaded = true; }
     for (const auto& enemy : w.level.enemies) if (enemy.alive && enemy.avatar == 2) {
         const float x = enemy.body.x + (enemy.direction > 0 ? 28 : -18);
         box({x, enemy.body.y - 8, 5, 36}, RGB(160,105,65));

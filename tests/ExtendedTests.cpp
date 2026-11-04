@@ -51,6 +51,13 @@ void runExtendedTests() {
         World early; early.load(level);
         for (const auto& enemy : early.level.enemies) require(enemy.avatar != 0, "Claude appeared before chapter seven");
     }
+    // Claude 在旧射程以外且存在高度差时仍能朝玩家甩出放大图片。
+    World ranged; ranged.level.platforms.clear(); ranged.level.spikes.clear(); ranged.level.overheadTraps.clear();
+    ranged.player.body = {800,200,24,28};
+    ranged.level.enemies = {{{100,100,26,28},100,150,0,1,true,0,4.0f}};
+    updateCombat(ranged,{},ranged.player,FixedStep);
+    require(ranged.projectiles.size() == 1 && ranged.projectiles[0].kind == ShotKind::Ban && ranged.projectiles[0].vx > 0 && ranged.projectiles[0].vy > 0, "Claude ranged throw missing");
+    require(ranged.projectiles[0].body.w == BanWidth && ranged.projectiles[0].body.h == BanHeight, "Ban image collision size mismatch");
     World ban; ban.level.enemies.clear(); ban.player.body = {50,200,24,28}; ban.hurtCooldown = 1;
     ban.projectiles.push_back({ban.player.body,0,0,2,true,ShotKind::Ban});
     updateCombat(ban, {}, ban.player, FixedStep);
