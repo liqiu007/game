@@ -96,6 +96,8 @@ int Game::run(Preview preview, bool debugSix) {
         }
     }
     bool progressSaved = false;
+    // 通关存档失败后的重试间隔：失败时约每秒重试一次，不再每帧静默重试。
+    float saveRetryDelay = 0;
     if (smokeTest) {
         world.load(0);
         menu.page = preview == Preview::Home ? Page::Home :
@@ -171,7 +173,7 @@ int Game::run(Preview preview, bool debugSix) {
     int frames = 0;
     while (running && IsWindow(window)) {
         const bool wasDead = world.dead;
-        if (!world.won) { victoryAge = 0; progressSaved = false; }
+        if (!world.won) { victoryAge = 0; progressSaved = false; saveRetryDelay = 0; }
         const auto now = Clock::now();
         const double frameTime = std::min(std::chrono::duration<double>(now - previous).count(), 0.1);
         previous = now;
@@ -236,8 +238,13 @@ int Game::run(Preview preview, bool debugSix) {
             if (victory == VictoryAction::Home) { menu.home(); accumulator = 0; pendingJump = false; }
             // 闯关结束后顺序进入下一关；最终关回主页面，无尽模式不会出现通关面板。
             if (world.won && (pressed(VK_RETURN) || victory == VictoryAction::Next)) {
-                if (world.chapter < 14 && world.chapter + 1 < account.unlocked) { world.load(world.chapter + 1); menu.chosenLevel = world.chapter; }
-                else menu.home();
+                // 存档还没成功时先立刻重试一次，失败则留在结算页并显示红字提示，
+                // 避免玩家按“下一关”却被静默送回主页，误以为关卡没有解锁。
+                if (!smokeTest && !debugSix && !progressSaved)
+                    progressSaved = account.complete(world.chapter, evaluateStars(world).count, world.scoring.total());
+                const bool advance = world.chapter < 14 && world.chapter + 1 < account.unlocked;
+                if (advance) { world.load(world.chapter + 1); menu.chosenLevel = world.chapter; }
+                else if (world.chapter == 14) menu.home();
                 accumulator = 0; pendingJump = false;
             }
             if (world.banPending) action = DeathAction::None;
@@ -271,8 +278,15 @@ int Game::run(Preview preview, bool debugSix) {
                 world.deathReason = L"封禁命中：闯关进度已清零，请从第一关重新开始";
             }
         }
-        if (!smokeTest && !debugSix && world.won && !world.endless && !progressSaved)
-            progressSaved = account.complete(world.chapter, evaluateStars(world).count, world.scoring.total());
+        // 通关存档：成功才标记已保存；失败时按固定间隔重试，并由 HUD 与结算页明确提示，
+        // 避免出现“第一关打通了却没有解锁第二关”却毫无反馈的情况。
+        if (!smokeTest && !debugSix && world.won && !world.endless && !progressSaved) {
+            saveRetryDelay -= static_cast<float>(frameTime);
+            if (saveRetryDelay <= 0) {
+                progressSaved = account.complete(world.chapter, evaluateStars(world).count, world.scoring.total());
+                saveRetryDelay = 1.0f;
+            }
+        }
         if (world.won && menu.page == Page::Playing && (focused || smokeTest)) victoryAge += static_cast<float>(frameTime);
         if (smokeTest) victoryAge = 3;
         // 仅真实游玩入账，保存失败保留待存金币并重试。
@@ -439,12 +453,25 @@ void Game::render() const {
             (world.chapter == 1 ? L"裂纹桥面踩踏后会坍塌，及时起跳；避开移动锯轮。" :
             (world.chapter == 3 && !world.endless ? L"激光亮起时致命，虚线时可通行。观察节奏再出发。" :
             L"W 短按小跳 / 长按高跳；起点上方有弹簧与米饭支线。")), 18, RGB(220, 231, 237));
+    // 存档状态提示：最近一次写入失败或正在使用备用目录时直接显示，让玩家知道进度会存到哪里。
+    if (account.ready) {
+        if (account.lastSaveFailed)
+            label(32, 566, L"存档写入失败：本次进度尚未保存，请检查存档目录权限。", 16, RGB(255, 118, 108));
+        else if (account.fallbackDirectory)
+            label(32, 566, L"存档位置：默认目录不可写，已自动改用备用目录。", 16, RGB(255, 224, 130));
+    }
     // 绘制步骤八：死亡结算优先覆盖整个场景，否则显示暂停或通关面板。
     if (world.dead) {
         if (world.deathBurst.age >= 0.55f) drawDeathScreen(world);
         return;
     }
-    if (world.won) { drawVictoryScreen(world, victoryAge); return; }
+    if (world.won) {
+        drawVictoryScreen(world, victoryAge);
+        // 通关档写入失败时在结算页说明，避免玩家按“下一关”却回到主页而不知道原因。
+        if (account.ready && account.lastSaveFailed)
+            label(150, 574, L"进度保存失败：存档目录不可写，本关解锁可能不会保留。", 17, RGB(255, 118, 108));
+        return;
+    }
     if (paused) {
         box({235, 190, 490, 140}, RGB(30, 45, 67));
         label(285, 215, L"游戏已暂停", 28, RGB(255, 221, 132));

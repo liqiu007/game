@@ -36,6 +36,26 @@ void runEconomyTests() {
     Account bannedReload; expect(bannedReload.login(L"测试甲", folder) && bannedReload.unlocked == 1 && bannedReload.bestStars[0] == 0 && bannedReload.bestScores[0] == 0 && bannedReload.coins == 25, "Campaign reset persistence failed");
     expect(secondPlayer.coins == 0 && secondPlayer.unlocked == 1, "Ban affected another profile");
     std::filesystem::remove(firstPlayer.path); std::filesystem::remove(secondPlayer.path); std::filesystem::remove(folder);
+    // 存档目录回退：默认目录不可写时自动换成备用目录，保证通关解锁不会静默丢失。
+    const auto fallbackRoot = std::filesystem::temp_directory_path() / ("game-fallback-" + std::to_string(GetCurrentProcessId()));
+    std::error_code fallbackError;
+    std::filesystem::create_directories(fallbackRoot, fallbackError);
+    const auto blocked = fallbackRoot / L"blocked";
+    { std::ofstream placeholder(blocked, std::ios::trunc); placeholder << 'x'; }   // 用同名文件占位，目录无法建立
+    const auto fallback = fallbackRoot / L"players";
+    Account fallbackPlayer;
+    expect(!fallbackPlayer.loginInDirectories(L"回退甲", {blocked}), "Unwritable profile directory must fail cleanly");
+    expect(fallbackPlayer.loginInDirectories(L"回退甲", {blocked, fallback}) && fallbackPlayer.directory == fallback &&
+        fallbackPlayer.fallbackDirectory, "Writable fallback directory must be selected");
+    expect(fallbackPlayer.complete(0, 2, 450), "Fallback profile save failed");
+    Account fallbackReload;
+    expect(fallbackReload.loginInDirectories(L"回退甲", {blocked, fallback}) && fallbackReload.unlocked == 2 &&
+        fallbackReload.bestStars[0] == 2 && fallbackReload.bestScores[0] == 450, "Fallback profile reload failed");
+    // 落盘失败必须留下标志供界面提示，而不是每帧静默重试。
+    std::filesystem::remove_all(fallback, fallbackError);
+    { std::ofstream blocker(fallback, std::ios::trunc); blocker << 'x'; }
+    expect(!fallbackReload.earn(10) && fallbackReload.lastSaveFailed && fallbackReload.coins == 0, "Write failure must be reported");
+    std::filesystem::remove_all(fallbackRoot, fallbackError);
     // 临时账户与真实用户存档隔离，验证存盘、余额不足、去重购买及菜单返回。
     Account wallet; wallet.ready = true;
     wallet.path = std::filesystem::temp_directory_path() / ("game-wallet-test-" + std::to_string(GetCurrentProcessId()) + ".txt");
