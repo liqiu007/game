@@ -80,16 +80,17 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
         w.shootCooldown = 0.22f;
     }
     // 第五步：BOSS 仅在竞技场附近开火，血量过半后加快弹幕频率。
+    // 2026-11-04 起整体放慢：满血每 2 秒一轮、残血每 1.3 秒一轮，弹速由每秒 230 像素降到 160 像素。
     const Rect boss{2115, 288, 56, 72};
     if (w.level.boss && w.bossHealth > 0 && w.player.body.x > 1730) {
         w.bossTimer += dt;
         if (overlaps(w.player.body, boss)) { w.hurt(L"你撞上了 BOSS"); if (w.dead) return false; }
-        if (w.bossTimer >= (w.bossHealth > 6 ? 1.2f : 0.7f)) {
+        if (w.bossTimer >= (w.bossHealth > 6 ? 2.0f : 1.3f)) {
             w.bossTimer = 0;
             const float dx = w.player.body.x - boss.x, dy = w.player.body.y - (boss.y + 32);
             const float length = std::max(1.0f, std::sqrt(dx * dx + dy * dy));
             for (float spread : {-45.0f, 0.0f, 45.0f})
-                w.projectiles.push_back({{boss.x, boss.y + 32, 10, 10}, dx / length * 230, dy / length * 230 + spread, 4, true});
+                w.projectiles.push_back({{boss.x, boss.y + 32, 10, 10}, dx / length * 160, dy / length * 160 + spread, 4, true});
         }
     }
     // 炮台在附近按模拟时间射击，子弹只沿 X 轴飞行；暂停时计时冻结。

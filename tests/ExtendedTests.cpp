@@ -223,6 +223,11 @@ void runExtendedTests() {
     boss.health = 1;
     boss.projectiles.push_back({boss.player.body, 0, 0, 1, true}); steps(boss, 1);
     require(boss.dead, "Hostile boss bullet must kill player");
+    // 2026-11-04 起第五关 BOSS 弹幕放慢：满血每 2 秒才打一轮，三发弹速降到 160 像素每秒。
+    World slowBoss; slowBoss.load(4); slowBoss.player.body = {2050, 332, 24, 28};
+    steps(slowBoss, 200); require(slowBoss.projectiles.empty(), "Boss must wait two seconds before the first volley");
+    steps(slowBoss, 60); require(slowBoss.projectiles.size() == 3, "Slow boss must fire three bullets after two seconds");
+    require(std::abs(slowBoss.projectiles[0].vx) < 200.0f, "Boss bullets must be slower than the old 230 pixels per second");
     // 第六组：真实移动越过十二段无尽平台，验证生成会延伸且不会意外通关。
     World endless; endless.load(0, true);
     const float initialWidth = endless.level.width;
