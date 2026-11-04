@@ -89,26 +89,30 @@ bool Account::loginInDirectories(const std::wstring& name, const std::vector<std
     std::wstring clean, key;
     if (!encodeNickname(name, clean, key)) return false;
     if (directories.empty()) return false;
-    // 第一步：按顺序读取第一份存在的存档；格式非法直接失败，避免坏档被后续写入覆盖。
+    // 第一步：在候选目录里挑出最后写入的一份存档来读取。同一台机器上普通启动和沙箱启动
+    // 可能把进度写到不同目录，取最新一份才不会让新解锁被旧档案覆盖回去。
     Account candidate;
     candidate.nickname = clean;
+    std::filesystem::path newestFile;
+    std::filesystem::file_time_type newestTime = std::filesystem::file_time_type::min();
     for (const auto& folder : directories) {
         if (folder.empty()) continue;
         const auto file = folder / (key + L".txt");
         std::error_code error;
         if (!std::filesystem::exists(file, error) || error) continue;
-        std::ifstream input(file);
+        const auto stamp = std::filesystem::last_write_time(file, error);
+        if (error) continue;
+        if (newestFile.empty() || stamp > newestTime) { newestFile = file; newestTime = stamp; }
+    }
+    if (!newestFile.empty()) {
+        std::ifstream input(newestFile);
         int version = 0;
-        // 每次尝试读取前先复位，读到半截不会把上一次的数据混进当前档案。
-        candidate.coins = 0; candidate.owned = 0; candidate.unlocked = 1;
-        candidate.bestStars.fill(0); candidate.bestScores.fill(0);
         if (!(input >> version >> candidate.coins >> candidate.owned >> candidate.unlocked) ||
             (version != 2 && version != 3) || candidate.coins < 0 || candidate.owned < 0 || candidate.owned > 3 ||
             candidate.unlocked < 1 || candidate.unlocked > (version == 2 ? 5 : SlotCount)) return false;
         for (int i = 0; i < (version == 2 ? 5 : SlotCount); ++i)
             if (!(input >> candidate.bestStars[i] >> candidate.bestScores[i]) ||
                 candidate.bestStars[i] < 0 || candidate.bestStars[i] > 3 || candidate.bestScores[i] < 0) return false;
-        break;
     }
     // 第二步：选择第一个可写目录作为写入位置；全部不可写时登录失败，由主循环弹窗提示玩家。
     std::filesystem::path chosen;

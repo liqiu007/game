@@ -5,6 +5,7 @@
 #include <fstream>
 #include "Menu.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <set>
 #include <stdexcept>
@@ -56,6 +57,24 @@ void runEconomyTests() {
     { std::ofstream blocker(fallback, std::ios::trunc); blocker << 'x'; }
     expect(!fallbackReload.earn(10) && fallbackReload.lastSaveFailed && fallbackReload.coins == 0, "Write failure must be reported");
     std::filesystem::remove_all(fallbackRoot, fallbackError);
+    // 多份档案并存时取最新写入的一份：沙箱里产生的进度回到普通启动后仍然生效，不会被旧档覆盖。
+    const auto newestRoot = std::filesystem::temp_directory_path() / ("game-newest-" + std::to_string(GetCurrentProcessId()));
+    const auto olderDir = newestRoot / L"older";
+    const auto newerDir = newestRoot / L"newer";
+    std::filesystem::create_directories(olderDir, fallbackError); std::filesystem::create_directories(newerDir, fallbackError);
+    Account olderProfile, newerProfile;
+    expect(olderProfile.loginInDirectories(L"最新甲", {olderDir}) && olderProfile.complete(0, 1, 100), "Older profile setup failed");
+    expect(newerProfile.loginInDirectories(L"最新甲", {newerDir}) && newerProfile.complete(0, 3, 900) &&
+        newerProfile.complete(1, 2, 500), "Newer profile setup failed");
+    // 显式拉开两份档案的修改时间，避免依赖文件系统时间戳精度。
+    std::filesystem::last_write_time(olderProfile.path,
+        std::filesystem::file_time_type::clock::now() - std::chrono::minutes(10), fallbackError);
+    std::filesystem::last_write_time(newerProfile.path, std::filesystem::file_time_type::clock::now(), fallbackError);
+    Account mergedProfile;
+    expect(mergedProfile.loginInDirectories(L"最新甲", {olderDir, newerDir}) && mergedProfile.directory == olderDir &&
+        mergedProfile.unlocked == 3 && mergedProfile.bestScores[0] == 900 && mergedProfile.bestScores[1] == 500,
+        "Newest profile must win");
+    std::filesystem::remove_all(newestRoot, fallbackError);
     // 临时账户与真实用户存档隔离，验证存盘、余额不足、去重购买及菜单返回。
     Account wallet; wallet.ready = true;
     wallet.path = std::filesystem::temp_directory_path() / ("game-wallet-test-" + std::to_string(GetCurrentProcessId()) + ".txt");
