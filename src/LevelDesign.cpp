@@ -69,7 +69,12 @@ Level Level::campaign(int index) {
     if (stage == 6) result.name = L"第7关 · 隐藏拳头";
     const auto end = result.platforms.back();
     result.goal = {end.x + 130, end.y - 52, 32, 52}; result.width = end.right();
-    for (auto& enemy : result.enemies) enemy.avatar = stage >= 6 ? avatar() : 1 + avatar() % 2;
+    // 敌人形象按关卡投放：第一、二关只有近战的 Grok，第三关起 GPT 登场，第七关起 Claude 也可能出现。
+    for (auto& enemy : result.enemies) {
+        if (stage < 2) enemy.avatar = 2;
+        else if (stage < 6) enemy.avatar = 1 + avatar() % 2;
+        else enemy.avatar = avatar();
+    }
     for (std::size_t i = 0; i < result.platforms.size(); ++i) addRoadCoins(result, i);
     return result;
 }

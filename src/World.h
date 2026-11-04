@@ -120,6 +120,8 @@ public:
     Player player;
     // 血量由 blood.cpp 管理，与重生体力分别计算；玩家只有一滴血，任何伤害都会直接死亡。
     static constexpr int MaxHealth = 1;
+    // GPT 的 NS方程/局部光滑性猜想 弹幕只眩晕不扣血；眩晕时间 2026-11-04 从 10 秒缩短为 2 秒。
+    static constexpr float GptStunSeconds = 2.0f;
     int health = MaxHealth;
     float hurtCooldown = 0;
     void resetBlood();

@@ -46,11 +46,25 @@ bool travelTo(World& world, float target) {
 }
 }
 void runExtendedTests() {
-    // 三种武器命中效果独立于普通弹丸，并严格限制 Claude 的出现关卡。
+    // 三种武器命中效果独立于普通弹丸，并严格限制 Claude 与 GPT 的出现关卡。
     for (int level = 0; level < 6; ++level) {
         World early; early.load(level);
         for (const auto& enemy : early.level.enemies) require(enemy.avatar != 0, "Claude appeared before chapter seven");
     }
+    // 第一、二关只有近战 Grok；第三关起 GPT 才会被抽到，反复生成确保它确实登场。
+    for (int level = 0; level < 2; ++level) {
+        World early; early.load(level);
+        for (const auto& enemy : early.level.enemies) require(enemy.avatar == 2, "GPT appeared before chapter three");
+    }
+    bool gptSeen = false;
+    for (int attempt = 0; attempt < 20 && !gptSeen; ++attempt) {
+        World third; third.load(2);
+        for (const auto& enemy : third.level.enemies) {
+            require(enemy.avatar == 1 || enemy.avatar == 2, "Invalid monster in chapter three");
+            gptSeen = gptSeen || enemy.avatar == 1;
+        }
+    }
+    require(gptSeen, "GPT must appear from chapter three");
     // Claude 在旧射程以外且存在高度差时仍能朝玩家甩出放大图片。
     World ranged; ranged.level.platforms.clear(); ranged.level.spikes.clear(); ranged.level.overheadTraps.clear();
     ranged.player.body = {800,200,24,28};
@@ -62,14 +76,26 @@ void runExtendedTests() {
     ban.projectiles.push_back({ban.player.body,0,0,2,true,ShotKind::Ban});
     updateCombat(ban, {}, ban.player, FixedStep);
     require(ban.dead && ban.health == 0 && ban.banPending, "Ban must bypass health and immunity");
+    // GPT 只有远程弹幕攻击：贴身接触不扣血，射速更快、弹速 260，命中只眩晕 2 秒。
+    World gptTouch; gptTouch.level.platforms.clear(); gptTouch.level.spikes.clear(); gptTouch.level.overheadTraps.clear();
+    gptTouch.player.body = {100,200,24,28};
+    gptTouch.level.enemies = {{{100,200,26,28},80,120,0,1,true,1,0.0f}};
+    updateCombat(gptTouch, {}, gptTouch.player, FixedStep);
+    require(!gptTouch.dead && gptTouch.health == World::MaxHealth, "GPT must not hurt on contact");
+    World gptShot; gptShot.level.platforms.clear(); gptShot.level.spikes.clear(); gptShot.level.overheadTraps.clear();
+    gptShot.player.body = {400,200,24,28};
+    gptShot.level.enemies = {{{100,200,26,28},80,120,0,1,true,1,3.0f}};
+    updateCombat(gptShot, {}, gptShot.player, FixedStep);
+    require(gptShot.projectiles.size() == 1 && gptShot.projectiles[0].vx == 260.0f && gptShot.projectiles[0].hostile,
+        "GPT shot must be faster than the old 130 pixels per second");
     World stun; stun.player.body = {50,200,24,28};
     stun.projectiles.push_back({stun.player.body,0,0,2,true,ShotKind::Equation});
     updateCombat(stun, {}, stun.player, FixedStep);
-    require(stun.player.stun == 10 && stun.health == World::MaxHealth, "GPT must stun for ten seconds without damage");
+    require(stun.player.stun == World::GptStunSeconds && stun.health == World::MaxHealth, "GPT must stun for two seconds without damage");
     const float oldX = stun.player.body.x; stun.update({false,true,true,true},FixedStep);
-    require(stun.player.body.x == oldX && stun.player.stun < 10, "Stun must block movement and count down");
+    require(stun.player.body.x == oldX && stun.player.stun < World::GptStunSeconds, "Stun must block movement and count down");
     stun.player.body = {60,522,24,28}; stun.player.vy = 0;
-    steps(stun, 1201); require(stun.player.stun == 0 && !stun.dead, "Stun must end after ten seconds");
+    steps(stun, 241); require(stun.player.stun == 0 && !stun.dead, "Stun must end after two seconds");
     stun.update({false,true},FixedStep); require(stun.player.body.x > 60, "Movement did not resume after stun");
     World axe; axe.player.body = {60,200,24,28};
     axe.level.enemies = {{{80,200,26,28},70,100,0,1,true,2,1.4f}};

@@ -35,7 +35,8 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
             if (w.player.vy > 0 && before.body.bottom() <= enemy.body.y + 6) {
                 enemy.alive = false; w.player.vy = -360; w.player.jumpsLeft = 1;
                 w.scoring.defeatEnemy(static_cast<std::size_t>(&enemy - w.level.enemies.data()));
-            } else if (enemy.avatar != 2) { w.hurt(L"你撞上了巡逻敌人"); if (w.dead) return false; }
+            // GPT 只有远程弹幕攻击，贴身接触不会造成伤害；Claude 与 Grok 仍然保留接触伤害。
+            } else if (enemy.avatar == 0) { w.hurt(L"你撞上了巡逻敌人"); if (w.dead) return false; }
         }
         if (!enemy.alive) continue;
         enemy.axeFlash = std::max(0.0f, enemy.axeFlash - dt);
@@ -52,14 +53,15 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
                 if (overlaps(w.player.body, {enemy.body.x - 48, enemy.body.y - 12, 122, 52})) w.hurt(L"你被 Grok 的斧头击中了", 2);
                 if (w.dead) return false;
             }
-        } else if (enemy.attackTimer >= 4.0f) {
+        } else if (enemy.attackTimer >= (enemy.avatar == 0 ? 4.0f : 3.0f)) {
             enemy.attackTimer = 0;
             static std::mt19937 rng(std::random_device{}());
             const auto kind = enemy.avatar == 0 ? ShotKind::Ban : (std::uniform_int_distribution<int>(0,1)(rng) ? ShotKind::Equation : ShotKind::Smoothness);
             const float width = kind == ShotKind::Ban ? static_cast<float>(BanWidth) : (kind == ShotKind::Equation ? 150.0f : 270.0f);
             const float height = kind == ShotKind::Ban ? static_cast<float>(BanHeight) : 40.0f;
             // Claude 出手时瞄准玩家所在方向；投掷后沿固定方向飞行，可跳跃躲开。
-            float vx = 130.0f * direction, vy = 0, life = 4;
+            // GPT 只有远程弹幕：2026-11-04 起射速由每 4 秒一发提升到每 3 秒一发，弹速由每秒 130 像素提升到 260 像素。
+            float vx = (enemy.avatar == 0 ? 130.0f : 260.0f) * direction, vy = 0, life = 4;
             if (rangedBan) {
                 const float dy = w.player.body.y - enemy.body.y;
                 const float length = std::max(1.0f, std::sqrt(dx * dx + dy * dy));
@@ -120,7 +122,7 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
         }
         if (shot.hostile && overlaps(shot.body, w.player.body)) { shot.life = 0;
             if (shot.kind == ShotKind::Ban) { w.banPending = true; w.die(L"你被 Claude 封禁了"); return false; }
-            if (shot.kind == ShotKind::Equation || shot.kind == ShotKind::Smoothness) w.player.stun = 10;
+            if (shot.kind == ShotKind::Equation || shot.kind == ShotKind::Smoothness) w.player.stun = World::GptStunSeconds;
             else w.hurt(L"你被敌方子弹击中了");
             if (w.dead) return false; }
         if (!shot.hostile) {
