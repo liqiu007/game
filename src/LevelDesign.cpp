@@ -17,6 +17,12 @@ void addRoadCoins(Level& level, std::size_t index) {
         level.coins.push_back({{(previous.right() + p.x) * 0.5f - 8, std::min(previous.y, p.y) - 70, 16, 16}});
     }
 }
+// 无尽模式的怪物形象随深度放开：开头只有近战 Grok，中段加入 GPT，很远之后 Claude 也可能出现。
+int endlessAvatar(std::size_t index) {
+    if (index < 6) return 2;
+    if (index < 30) return 1 + avatar() % 2;
+    return avatar();
+}
 }
 Level Level::campaign(int index) {
     // 第一步：复用基础跳跃间距，按关卡加入不同机制，避免随机生成不可达路线。
@@ -93,6 +99,8 @@ void World::load(int index, bool endlessMode) {
         level.spawnX = 60; level.spawnY = 522;
         level.checkpoint = {-1000, 0, 1, 1}; level.goal = {-1000, 0, 1, 1};
         level.width = 275;
+        // 无尽模式没有高路平台，允许落刺在角色正上方直接进入预警。
+        level.fallingSpikeGroundTrigger = true;
         addRoadCoins(level, 0);
     }
     checkpointActive = false; won = false; elapsed = 0; deaths = 0;
@@ -108,32 +116,45 @@ void World::extendEndless() {
     if (!endless || level.width >= player.body.x + 1440) return;
     while (level.width < player.body.x + 1440) {
         const std::size_t index = level.platforms.size();
-        const float heights[]{500, 440, 400, 460, 520};
+        // 第一步：平台高低起伏、宽窄交替，间距保持固定，保证每一段都还能跳过去。
+        const float heights[]{500, 440, 400, 460, 520, 430, 480};
+        const float widths[]{180, 210, 200, 170, 220};
         const float x = level.platforms.back().right() + (index % 4 == 0 ? 80 : 60);
-        const float y = heights[(index - 1) % 5];
-        const float width = index % 4 == 1 ? 210.0f : 180.0f;
+        const float y = heights[(index - 1) % 7];
+        const float width = widths[index % 5];
         level.platforms.push_back({x, y, width, 24});
         level.platformScores.push_back(100);
         addRoadCoins(level, index);
-        // 每三段设置一组伸缩尖刺，平台落脚区留出引诱机关的安全位置。
+        // 第二步：每三段设置一组伸缩尖刺，平台落脚区留出引诱机关的安全位置。
         if (index % 3 == 0) {
             level.spikes.push_back({x + 90, y - 24, 24, 24});
             level.spikes.push_back({x + 114, y - 24, 24, 24});
             level.spikeScores.push_back(100); level.spikeScores.push_back(100);
         }
-                // 分段组合避免每个平台同时堆叠机关；首段留作熟悉操作。
+        // 第三步：部分平台在正上方布置预警落刺，跑过去要迅速，长时间停留会被砸中。
+        if (index > 4 && index % 5 == 2) level.fallingSpikes.push_back({{x + 140, y - 200, 22, 28}, y - 200});
+        // 第四步：分段组合避免每个平台同时堆叠机关；首段留作熟悉操作。
         if (index > 3 && index % 3 != 0) {
-            switch (index % 8) {
+            // 用 index % 7 轮换机关类型：它与平台的“每三段一组”错开，保证七种都真的会出现。
+            switch (index % 7) {
             case 0: level.fragile.push_back({index}); break;
-            case 1: level.enemies.push_back({{x + 110, y - 28, 26, 28}, x + 90, x + width - 30}); break;
+            case 1: {
+                // 巡逻者形象按深度投放；足够深之后才追加第二名，形成上下夹击。
+                const float left = x + 30, right = x + width - 30;
+                level.enemies.push_back({{x + 110, y - 28, 26, 28}, left, right, 65, 1, true, endlessAvatar(index)});
+                if (index >= 30) level.enemies.push_back({{x + width - 70, y - 28, 26, 28}, left, right, 65, 1, true, endlessAvatar(index)});
+                break;
+            }
             case 2: level.lasers.push_back({{x + 135, y - 120, 10, 120}, 4.4f, 0.9f, 1.5f}); break;
             case 3: level.saws.push_back({{x + 140, y - 100, 20, 20}, x + 140, 22, 1.4f}); break;
             case 4: level.overheadTraps.push_back({{x + 115, y - 190, 24, 40}, TrapStyle::Ceiling}); break;
-            case 5: level.fallingSpikes.push_back({{x + 140, y - 200, 22, 28}, y - 200}); break;
-            default: break;
+            case 5: level.cannons.push_back({{x + width - 40, y - 24, 24, 24}, -1, 2.6f}); break;
+            default: level.fallingSpikes.push_back({{x + 70, y - 190, 22, 28}, y - 190}); break;
             }
         }
         level.width = x + width;
+        // 第五步：每八段切换一次背景主题，让无尽长跑沿途风景不断变化。
+        if (index >= 8) level.theme = static_cast<int>((index / 8) % 6);
     }
     for (auto& enemy : level.enemies) if (enemy.avatar < 0) enemy.avatar = 1 + avatar() % 2;
     // 新区域分组后恢复旧组计时，防止生成地形时已经触发的机关重新启动。

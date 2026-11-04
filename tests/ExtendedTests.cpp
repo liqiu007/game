@@ -235,7 +235,12 @@ void runExtendedTests() {
     for (std::size_t i = 1; i <= 24; ++i) {
         endless.extendEndless();
         const float target = endless.level.platforms[i].x + 24;
-        require(travelTo(endless, target), "Endless mixed trap route blocked");
+        if (!travelTo(endless, target))
+            throw std::runtime_error("Endless mixed trap route blocked: i=" + std::to_string(i) +
+                ", x=" + std::to_string(static_cast<int>(endless.player.body.x)) +
+                ", dead=" + std::to_string(endless.dead) +
+                ", falling=" + std::to_string(endless.level.fallingSpikes.size()) +
+                ", enemies=" + std::to_string(endless.level.enemies.size()));
         require(!endless.dead && endless.player.body.x >= target - 5, "Generated endless platform must be reachable");
         baitNearby(endless); // 根据新的近距离阈值主动引诱，等待整组缩回再出发。
     }
@@ -245,6 +250,28 @@ void runExtendedTests() {
     require(endless.scoring.total() == score, "Generation must not award old platforms again");
     endless.restart();
     require(endless.endless && endless.scoring.total() == 0 && endless.player.body.x == 60, "Endless restart must reset run but keep mode");
+    // 第六组补充：无尽模式深远区域必须覆盖三种怪物、落刺、炮台，并随深度切换背景主题。
+    World deep; deep.load(0, true);
+    for (int wave = 0; wave < 60; ++wave) {
+        deep.player.body.x = deep.level.width - 600;
+        deep.extendEndless();
+    }
+    bool avatars[3]{false, false, false};
+    for (const auto& deepEnemy : deep.level.enemies)
+        if (deepEnemy.avatar >= 0 && deepEnemy.avatar < 3) avatars[deepEnemy.avatar] = true;
+    require(avatars[0] && avatars[1] && avatars[2], "Endless must eventually spawn Claude, GPT and Grok");
+    require(!deep.level.fallingSpikes.empty(), "Endless must contain falling spikes");
+    require(!deep.level.cannons.empty(), "Endless must contain horizontal cannons");
+    require(deep.level.theme != 5, "Endless must vary background theme with depth");
+    // 落刺会在玩家走到正下方时预警落下，一滴血会被直接清空。
+    World drop; drop.load(0, true);
+    drop.player.body.x = drop.level.width - 400; drop.extendEndless();
+    require(!drop.level.fallingSpikes.empty(), "Endless must contain falling spikes");
+    const auto dropSpike = drop.level.fallingSpikes.front();
+    drop.player.body = {dropSpike.body.x, dropSpike.homeY + 200 - 28, 24, 28};
+    drop.player.vy = 0;
+    steps(drop, 140);
+    require(drop.dead, "Falling spike must hit a player standing underneath");
     // 第七组：十五关实际配置均使用真实等待、跳跃、射击走到终点，包含新增高路的影响。
     for (int chapter = 0; chapter < 15; ++chapter) {
         World route; route.load(chapter);

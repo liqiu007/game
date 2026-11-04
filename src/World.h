@@ -102,6 +102,8 @@ struct Level {
     std::vector<SkyPlatform> skyPlatforms;
     std::vector<Spring> springs;
     std::vector<FallingSpike> fallingSpikes;
+    // 闯关模式的高路落刺只在高处触发；无尽模式没有高路平台，需要允许从平台正上方触发。
+    bool fallingSpikeGroundTrigger = false;
     std::vector<Feather> feathers;
     std::vector<Coin> coins;
     std::vector<HorizontalCannon> cannons;

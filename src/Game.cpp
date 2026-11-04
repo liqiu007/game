@@ -128,6 +128,8 @@ int Game::run(Preview preview, bool debugSix) {
         const int chapter = preview == Preview::Bridge ? 1 : (preview == Preview::Enemies ? 2 : (preview == Preview::Lasers ? 3 : 4));
         world.load(chapter, preview == Preview::Endless);
         if (preview == Preview::Boss) world.player.body = {2060, 332, 24, 28};
+        // 无尽预览停在开局二十段之后，让巡逻怪物、落刺与新机关一起进入画面。
+        else if (preview == Preview::Endless) { world.player.body.x = 2000; world.extendEndless(); }
         else if (preview != Preview::Endless) world.player.body = {970, 397, 24, 28};
     }
     if (preview == Preview::Exhausted) {
@@ -270,8 +272,12 @@ int Game::run(Preview preview, bool debugSix) {
             } else { accumulator = 0; pendingJump = false; }
         }
         if (world.banPending) {
-            // 调试账户只改内存；正式游戏必须成功保存后才能离开封禁结算。
-            if (smokeTest || debugSix || account.resetCampaign()) {
+            // 无尽模式被 Claude 封禁只结束本局，不删除闯关进度；闯关模式仍清空存档进度。
+            if (world.endless) {
+                world.banPending = false;
+                world.deathReason = L"封禁命中：本局结束，闯关进度不受影响";
+            } else if (smokeTest || debugSix || account.resetCampaign()) {
+                // 调试账户只改内存；正式游戏必须成功保存后才能离开封禁结算。
                 account.unlocked = 1; account.bestStars.fill(0); account.bestScores.fill(0);
                 world.banPending = false; world.chapter = 0; world.checkpointActive = false;
                 world.stamina = 0; menu.chosenLevel = 0;

@@ -107,8 +107,11 @@ bool finishAdventure(World& w, float dt) {
     // 第二步：落刺先预警 0.45 秒，再下落，碰平台停留后复位，不穿越多层地形。
     for (auto& f : w.level.fallingSpikes) {
         if (f.phase == FallingPhase::Idle) {
-            if (std::abs(w.player.body.x + 12 - f.body.x - 12) < 48 &&
-                w.player.body.y > f.body.bottom() && w.player.body.y < 300) {
+            // 水平靠近且站在落刺下方才触发；闯关模式只在高路触发，无尽模式允许在平台正上方触发。
+            const bool nearby = std::abs(w.player.body.x + 12 - f.body.x - 12) < 48;
+            const bool below = w.player.body.y > f.body.bottom();
+            const bool highRoad = w.player.body.y < 300;
+            if (nearby && below && (highRoad || w.level.fallingSpikeGroundTrigger)) {
                 f.phase = FallingPhase::Warning; f.timer = 0.45f;
             }
         } else if (f.phase == FallingPhase::Warning) {
