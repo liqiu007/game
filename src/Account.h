@@ -16,6 +16,7 @@ public:
     bool save(int balance, int items);
     bool earn(int amount);
     bool buy(int item);
+    bool resetCampaign();
     bool complete(int chapter, int stars, int score);
 };
 inline Account account;

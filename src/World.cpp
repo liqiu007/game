@@ -49,7 +49,7 @@ void World::resetPlayer() {
     for (auto& fist : level.fists) fist.timer = 0;
     projectiles.clear(); bossHealth = 12; bossTimer = 0; shootCooldown = 0; facing = 1;
     for (auto& f : level.fragile) { f.timer = 0.65f; f.touched = false; f.collapsed = false; }
-    for (auto& e : level.enemies) { e.body.x = e.left; e.alive = true; e.direction = 1; }
+    for (auto& e : level.enemies) { e.body.x = e.left; e.alive = true; e.direction = 1; e.attackTimer = e.axeFlash = 0; }
     // 第一步：复位机关与死亡标记，保留本局累计积分和存档点。
     spikeActivity.reset(level.spikes, spikeRandom);
     resetAdventure(*this);
@@ -83,9 +83,13 @@ void World::restart() {
     // 根据当前模式重新构建关卡，无尽模式也会清除已生成的旧路段。
     load(chapter, endless);
 }
-void World::update(const Input& input, float dt) {
+void World::update(const Input& requestedInput, float dt) {
     // 第一步：结算后冻结世界；正常更新时保存上一步状态用于判断新得分。
     if (won || dead) return;
+    // 眩晕仅屏蔽操作，重力和机关仍推进；暂停时不会倒计时。
+    Input input = requestedInput;
+    if (player.stun > 0) { input = Input{}; player.jumpBuffer = 0; }
+    player.stun = std::max(0.0f, player.stun - dt);
     updateBlood(dt);
     extendEndless();
     const Player before = player;

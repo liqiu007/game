@@ -47,13 +47,14 @@ struct Feather { Rect body; bool collected = false; };
 struct Coin { Rect body; bool collected = false; };
 // 各类机关的数据与运行状态分开保存，重生时恢复初始状态。
 struct FragilePlatform { std::size_t index; float timer = 0.65f; bool touched = false, collapsed = false; };
-struct Enemy { Rect body; float left, right, speed = 65; int direction = 1; bool alive = true; int avatar = -1; };
+struct Enemy { Rect body; float left, right, speed = 65; int direction = 1; bool alive = true; int avatar = -1; float attackTimer = 0, axeFlash = 0; };
 struct Laser { Rect body; float period = 3.4f, activeSeconds = 1.2f, offset = 0; };
 struct Saw { Rect body; float originX, range, rate; };
 // 水平炮台按固定周期射击；拳头藏在平台内，踩踏后弹出并进入冷却。
 struct HorizontalCannon { Rect body; int direction = -1; float period = 2.6f, timer = 0; };
 struct SpringFist { Rect body; float timer = 0; };
-struct Projectile { Rect body; float vx, vy, life = 3; bool hostile = false; };
+enum class ShotKind { Normal, Ban, Equation, Smoothness };
+struct Projectile { Rect body; float vx, vy, life = 3; bool hostile = false; ShotKind kind = ShotKind::Normal; };
 // 特殊陷阱保持世界坐标；夹击类型关联现有地面尖刺，使上下两侧同步动作。
 enum class TrapStyle { Ceiling, Crusher };
 struct OverheadTrap {
@@ -75,6 +76,7 @@ struct Player {
     // 参考 JubilWanna：离边容错、落地前缓存，以及起跳/落地的形变动画。
     float coyote = 0, jumpBuffer = 0, jumpCut = 0;
     float animTime = 0, runPhase = 0, squash = 0, stretch = 0, springCooldown = 0;
+    float stun = 0;
     int standingSky = -1;
 };
 // 关卡使用世界坐标；分值数组与对应的尖刺/平台数组按索引匹配。
@@ -120,13 +122,14 @@ public:
     float hurtCooldown = 0;
     void resetBlood();
     void updateBlood(float dt);
-    void hurt(const wchar_t* reason);
+    void hurt(const wchar_t* reason, int damage = 1);
     int deaths = 0;
     static constexpr int InitialStamina = 10;
     int stamina = InitialStamina;
     bool checkpointActive = false;
     bool won = false;
     bool dead = false;
+    bool banPending = false;
     DeathBurst deathBurst;
     std::wstring deathReason;
     ScoreSystem scoring;

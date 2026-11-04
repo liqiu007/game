@@ -64,6 +64,11 @@ bool Account::buy(int item) {
     const int price = item == 0 ? 30 : 50;
     return coins >= price && save(coins - price, owned | (1 << item));
 }
+bool Account::resetCampaign() {
+    // 仅清除闯关解锁和纪录，金币与外观保留；写入失败不吞掉重试请求。
+    unlocked = 1; bestStars.fill(0); bestScores.fill(0);
+    return save(coins, owned);
+}
 bool Account::complete(int chapter, int stars, int score) {
     // 只接受已经开放的关卡；任何星数通关都解锁下一关，最高纪录只增不减。
     if (!ready || chapter < 0 || chapter >= unlocked || chapter > 14 || stars < 0 || stars > 3 || score < 0) return false;

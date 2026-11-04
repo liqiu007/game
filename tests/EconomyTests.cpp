@@ -31,6 +31,10 @@ void runEconomyTests() {
     expect(secondPlayer.login(L"测试乙", folder) && secondPlayer.coins == 0 && secondPlayer.unlocked == 1, "Profiles mixed");
     expect(restored.login(L"测试甲", folder) && restored.coins == 25 && restored.unlocked == 2 &&
         restored.bestStars[0] == 2 && restored.bestScores[0] == 600, "Profile reload failed");
+    // 封禁清零后重新登录验证持久化；金币和另一个昵称均不受影响。
+    expect(restored.resetCampaign(), "Campaign reset save failed");
+    Account bannedReload; expect(bannedReload.login(L"测试甲", folder) && bannedReload.unlocked == 1 && bannedReload.bestStars[0] == 0 && bannedReload.bestScores[0] == 0 && bannedReload.coins == 25, "Campaign reset persistence failed");
+    expect(secondPlayer.coins == 0 && secondPlayer.unlocked == 1, "Ban affected another profile");
     std::filesystem::remove(firstPlayer.path); std::filesystem::remove(secondPlayer.path); std::filesystem::remove(folder);
     // 临时账户与真实用户存档隔离，验证存盘、余额不足、去重购买及菜单返回。
     Account wallet; wallet.ready = true;

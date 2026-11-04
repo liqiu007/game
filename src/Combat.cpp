@@ -2,6 +2,7 @@
 #include "Combat.h"
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 namespace game {
 bool laserActive(const Laser& laser, float elapsed) {
@@ -34,7 +35,28 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
             if (w.player.vy > 0 && before.body.bottom() <= enemy.body.y + 6) {
                 enemy.alive = false; w.player.vy = -360; w.player.jumpsLeft = 1;
                 w.scoring.defeatEnemy(static_cast<std::size_t>(&enemy - w.level.enemies.data()));
-            } else { w.hurt(L"你撞上了巡逻敌人"); if (w.dead) return false; }
+            } else if (enemy.avatar != 2) { w.hurt(L"你撞上了巡逻敌人"); if (w.dead) return false; }
+        }
+        if (!enemy.alive) continue;
+        enemy.axeFlash = std::max(0.0f, enemy.axeFlash - dt);
+        const float dx = w.player.body.x - enemy.body.x;
+        if (std::abs(dx) > 520 || std::abs(w.player.body.y - enemy.body.y) > 48) continue;
+        enemy.attackTimer += dt;
+        const int direction = dx < 0 ? -1 : 1;
+        if (enemy.avatar == 2) {
+            // 斧头每次挥击只判定一次，近战覆盖前后近身范围。
+            if (enemy.attackTimer >= 1.4f && std::abs(dx) < 64) {
+                enemy.attackTimer = 0; enemy.axeFlash = 0.35f;
+                if (overlaps(w.player.body, {enemy.body.x - 48, enemy.body.y - 12, 122, 52})) w.hurt(L"你被 Grok 的斧头击中了", 2);
+                if (w.dead) return false;
+            }
+        } else if (enemy.attackTimer >= 4.0f) {
+            enemy.attackTimer = 0;
+            static std::mt19937 rng(std::random_device{}());
+            const auto kind = enemy.avatar == 0 ? ShotKind::Ban : (std::uniform_int_distribution<int>(0,1)(rng) ? ShotKind::Equation : ShotKind::Smoothness);
+            const float width = kind == ShotKind::Ban ? 120.0f : (kind == ShotKind::Equation ? 150.0f : 270.0f);
+            const float height = kind == ShotKind::Ban ? 80.0f : 40.0f;
+            w.projectiles.push_back({{direction > 0 ? enemy.body.right() : enemy.body.x - width, enemy.body.y - height + 28, width, height}, 130.0f * direction, 0, 4, true, kind});
         }
     }
     // 第四步：J 可连续射击，朝向跟随最后一次水平移动；射击有冷却时间。
@@ -81,7 +103,16 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
     // 第六步：推进子弹，处理命中并删除过期对象，避免弹丸无限累积。
     for (auto& shot : w.projectiles) {
         shot.body.x += shot.vx * dt; shot.body.y += shot.vy * dt; shot.life -= dt;
-        if (shot.hostile && overlaps(shot.body, w.player.body)) { shot.life = 0; w.hurt(L"你被敌方子弹击中了"); if (w.dead) return false; }
+        // 大型武器弹幕碰到实体地形即消失，避免穿越整张地图封锁路线。
+        if (shot.kind != ShotKind::Normal) {
+            for (const auto& tile : w.level.platforms) if (overlaps(shot.body, tile)) { shot.life = 0; break; }
+            if (shot.life <= 0) continue;
+        }
+        if (shot.hostile && overlaps(shot.body, w.player.body)) { shot.life = 0;
+            if (shot.kind == ShotKind::Ban) { w.banPending = true; w.die(L"你被 Claude 封禁了"); return false; }
+            if (shot.kind == ShotKind::Equation || shot.kind == ShotKind::Smoothness) w.player.stun = 10;
+            else w.hurt(L"你被敌方子弹击中了");
+            if (w.dead) return false; }
         if (!shot.hostile) {
             for (auto& enemy : w.level.enemies)
                 if (enemy.alive && overlaps(shot.body, enemy.body)) {

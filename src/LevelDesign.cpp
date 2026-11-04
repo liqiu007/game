@@ -69,7 +69,7 @@ Level Level::campaign(int index) {
     if (stage == 6) result.name = L"第7关 · 隐藏拳头";
     const auto end = result.platforms.back();
     result.goal = {end.x + 130, end.y - 52, 32, 52}; result.width = end.right();
-    for (auto& enemy : result.enemies) enemy.avatar = avatar();
+    for (auto& enemy : result.enemies) enemy.avatar = stage >= 6 ? avatar() : 1 + avatar() % 2;
     for (std::size_t i = 0; i < result.platforms.size(); ++i) addRoadCoins(result, i);
     return result;
 }
@@ -130,7 +130,7 @@ void World::extendEndless() {
         }
         level.width = x + width;
     }
-    for (auto& enemy : level.enemies) if (enemy.avatar < 0) enemy.avatar = avatar();
+    for (auto& enemy : level.enemies) if (enemy.avatar < 0) enemy.avatar = 1 + avatar() % 2;
     // 新区域分组后恢复旧组计时，防止生成地形时已经触发的机关重新启动。
     spikeActivity.rebuild(level.spikes, spikeRandom);
 }

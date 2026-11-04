@@ -13,6 +13,7 @@ int main(int argc, char* argv[]) {
     game::Preview preview = game::Preview::None;
     if (argc > 1) {
         const std::string_view option(argv[1]);
+        if (option == "--weapons-smoke-test") preview = game::Preview::Weapons;
         if (option == "--smoke-test") preview = game::Preview::Scene;
         if (option == "--death-smoke-test") preview = game::Preview::Death;
         if (option == "--spike-smoke-test") preview = game::Preview::Spikes;

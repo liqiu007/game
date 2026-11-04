@@ -4,10 +4,10 @@
 namespace game {
 void World::resetBlood() { health = MaxHealth; hurtCooldown = 0; }
 void World::updateBlood(float dt) { hurtCooldown = std::max(0.0f, hurtCooldown - dt); }
-void World::hurt(const wchar_t* reason) {
+void World::hurt(const wchar_t* reason, int damage) {
     // 同一次接触和同时命中的机关在无敌期内不会连续扣血。
     if (dead || won || hurtCooldown > 0) return;
-    health = std::max(0, health - 1);
+    health = std::max(0, health - std::max(0, damage));
     hurtCooldown = 1.0f;
     if (health == 0) die(reason);
 }

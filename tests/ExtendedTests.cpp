@@ -25,6 +25,8 @@ void baitNearby(World& w) {
 }
 bool travelTo(World& world, float target) {
     // 尝试不同等待和二段跳时机，使用真实物理与危险判定寻找一条可行路线。
+    // 眩晕期间必须等待恢复后才能尝试下一次跳跃。
+    if (world.player.stun > 0) steps(world, static_cast<int>(world.player.stun / FixedStep) + 1);
     baitNearby(world);
     for (int approach : {0, -4, -8, 16, 32, 48}) for (int delay = 0; delay <= 240; delay += 6) {
         for (int secondJump : {24, 36, 48, 60, 18, 30, 42, 54}) {
@@ -44,6 +46,28 @@ bool travelTo(World& world, float target) {
 }
 }
 void runExtendedTests() {
+    // 三种武器命中效果独立于普通弹丸，并严格限制 Claude 的出现关卡。
+    for (int level = 0; level < 6; ++level) {
+        World early; early.load(level);
+        for (const auto& enemy : early.level.enemies) require(enemy.avatar != 0, "Claude appeared before chapter seven");
+    }
+    World ban; ban.level.enemies.clear(); ban.player.body = {50,200,24,28}; ban.hurtCooldown = 1;
+    ban.projectiles.push_back({ban.player.body,0,0,2,true,ShotKind::Ban});
+    updateCombat(ban, {}, ban.player, FixedStep);
+    require(ban.dead && ban.health == 0 && ban.banPending, "Ban must bypass health and immunity");
+    World stun; stun.player.body = {50,200,24,28};
+    stun.projectiles.push_back({stun.player.body,0,0,2,true,ShotKind::Equation});
+    updateCombat(stun, {}, stun.player, FixedStep);
+    require(stun.player.stun == 10 && stun.health == 5, "GPT must stun for ten seconds without damage");
+    const float oldX = stun.player.body.x; stun.update({false,true,true,true},FixedStep);
+    require(stun.player.body.x == oldX && stun.player.stun < 10, "Stun must block movement and count down");
+    stun.player.body = {60,522,24,28}; stun.player.vy = 0;
+    steps(stun, 1201); require(stun.player.stun == 0 && !stun.dead, "Stun must end after ten seconds");
+    stun.update({false,true},FixedStep); require(stun.player.body.x > 60, "Movement did not resume after stun");
+    World axe; axe.player.body = {60,200,24,28};
+    axe.level.enemies = {{{80,200,26,28},70,100,0,1,true,2,1.4f}};
+    updateCombat(axe,{},axe.player,FixedStep);
+    require(axe.health == 3 && !axe.dead, "Grok axe must deal two damage");
     // 五点血、无敌窗口、致命伤害和重生恢复均由独立血量系统管理。
     World blood; require(blood.health == 5, "Initial health must be five");
     blood.hurt(L"测试受伤"); require(blood.health == 4 && !blood.dead, "First hit must cost one health");

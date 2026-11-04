@@ -149,6 +149,12 @@ int Game::run(Preview preview, bool debugSix) {
         }
         world.player.body = world.level.goal; world.update({}, FixedStep);
     }
+    if (preview == Preview::Weapons) {
+        // 素材验证场景不推进碰撞，也不读写正式存档。
+        world.load(6); world.player.body = {60,522,24,28};
+        world.projectiles = {{{180,240,120,80},0,0,4,true,ShotKind::Ban}, {{360,240,150,40},0,0,4,true,ShotKind::Equation}, {{560,300,270,40},0,0,4,true,ShotKind::Smoothness}};
+        world.level.enemies = {{{430,430,26,28},400,470,0,1,true,2,0,0.3f}};
+    }
     if (debugSix) {
         // 使用内存调试账户，直接进入第六关起点；正式昵称档案不参与读写。
         account = Account{}; account.nickname = L"第六关调试"; account.unlocked = 15;
@@ -234,6 +240,7 @@ int Game::run(Preview preview, bool debugSix) {
                 else menu.home();
                 accumulator = 0; pendingJump = false;
             }
+            if (world.banPending) action = DeathAction::None;
             if (action != DeathAction::None) {
                 if (action == DeathAction::Restart) world.restart(); else world.respawn();
                 paused = false;
@@ -254,6 +261,15 @@ int Game::run(Preview preview, bool debugSix) {
                     accumulator -= FixedStep;
                 }
             } else { accumulator = 0; pendingJump = false; }
+        }
+        if (world.banPending) {
+            // 调试账户只改内存；正式游戏必须成功保存后才能离开封禁结算。
+            if (smokeTest || debugSix || account.resetCampaign()) {
+                account.unlocked = 1; account.bestStars.fill(0); account.bestScores.fill(0);
+                world.banPending = false; world.chapter = 0; world.checkpointActive = false;
+                world.stamina = 0; menu.chosenLevel = 0;
+                world.deathReason = L"封禁命中：闯关进度已清零，请从第一关重新开始";
+            }
         }
         if (!smokeTest && !debugSix && world.won && !world.endless && !progressSaved)
             progressSaved = account.complete(world.chapter, evaluateStars(world).count, world.scoring.total());
@@ -404,6 +420,7 @@ void Game::render() const {
     label(440, 52, (world.endless ? L"无限重生" : L"体力 " + std::to_wstring(world.stamina) + L" / 10"), 18, world.stamina <= 2 ? RGB(255, 128, 116) : RGB(127, 225, 170));
     label(540, 22, L"血量 " + std::to_wstring(world.health) + L" / 5", 18, world.health <= 2 ? RGB(255,100,100) : RGB(127,225,170));
     label(440, 80, L"金币 " + std::to_wstring(world.scoring.coinsCollected()), 18, RGB(255, 218, 92));
+    if (world.player.stun > 0) label(320, 125, L"眩晕 " + std::to_wstring(static_cast<int>(std::ceil(world.player.stun))) + L" 秒", 28, RGB(255,210,100));
     // 血滴使用世界坐标和当前镜头，短拖尾显示飞溅方向，末段缩小消失。
     for (const auto& p : world.deathBurst.drops) {
         const float fade = std::min(1.0f, p.life * 3);
