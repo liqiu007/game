@@ -19,10 +19,10 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
     // 第二步：更新锯轮的位置，检查开启中的激光和锯轮是否击中角色。
     for (auto& saw : w.level.saws) {
         saw.body.x = saw.originX + std::sin(w.elapsed * saw.rate) * saw.range;
-        if (overlaps(w.player.body, saw.body)) { w.die(L"你碰到了移动锯轮"); return false; }
+        if (overlaps(w.player.body, saw.body)) { w.hurt(L"你碰到了移动锯轮"); if (w.dead) return false; }
     }
     for (const auto& laser : w.level.lasers)
-        if (laserActive(laser, w.elapsed) && overlaps(w.player.body, laser.body)) { w.die(L"你被激光击中了"); return false; }
+        if (laserActive(laser, w.elapsed) && overlaps(w.player.body, laser.body)) { w.hurt(L"你被激光击中了"); if (w.dead) return false; }
     // 第三步：敌人在各自平台来回巡逻；从上往下踩中会消灭敌人并让角色弹起。
     for (auto& enemy : w.level.enemies) {
         if (!enemy.alive) continue;
@@ -34,7 +34,7 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
             if (w.player.vy > 0 && before.body.bottom() <= enemy.body.y + 6) {
                 enemy.alive = false; w.player.vy = -360; w.player.jumpsLeft = 1;
                 w.scoring.defeatEnemy(static_cast<std::size_t>(&enemy - w.level.enemies.data()));
-            } else { w.die(L"你撞上了巡逻敌人"); return false; }
+            } else { w.hurt(L"你撞上了巡逻敌人"); if (w.dead) return false; }
         }
     }
     // 第四步：J 可连续射击，朝向跟随最后一次水平移动；射击有冷却时间。
@@ -49,7 +49,7 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
     const Rect boss{2115, 288, 56, 72};
     if (w.level.boss && w.bossHealth > 0 && w.player.body.x > 1730) {
         w.bossTimer += dt;
-        if (overlaps(w.player.body, boss)) { w.die(L"你撞上了 BOSS"); return false; }
+        if (overlaps(w.player.body, boss)) { w.hurt(L"你撞上了 BOSS"); if (w.dead) return false; }
         if (w.bossTimer >= (w.bossHealth > 6 ? 1.2f : 0.7f)) {
             w.bossTimer = 0;
             const float dx = w.player.body.x - boss.x, dy = w.player.body.y - (boss.y + 32);
@@ -81,7 +81,7 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
     // 第六步：推进子弹，处理命中并删除过期对象，避免弹丸无限累积。
     for (auto& shot : w.projectiles) {
         shot.body.x += shot.vx * dt; shot.body.y += shot.vy * dt; shot.life -= dt;
-        if (shot.hostile && overlaps(shot.body, w.player.body)) { w.die(L"你被敌方子弹击中了"); return false; }
+        if (shot.hostile && overlaps(shot.body, w.player.body)) { shot.life = 0; w.hurt(L"你被敌方子弹击中了"); if (w.dead) return false; }
         if (!shot.hostile) {
             for (auto& enemy : w.level.enemies)
                 if (enemy.alive && overlaps(shot.body, enemy.body)) {

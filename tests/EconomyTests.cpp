@@ -104,7 +104,7 @@ void runEconomyTests() {
     w.die(L"零分重生"); w.respawn(); expect(w.scoring.total() == 0, "Respawn score cannot become negative");
     w.load(1); expect(w.stamina == 10 && w.scoring.total() == 0, "Changing chapter must start a fresh challenge");
     // 第三组：金币与危险同时触碰时先结算死亡，不让死亡帧获得金币。
-    World lethal; lethal.load(0); lethal.level.coins.push_back({{185, 522, 16, 16}});
+    World lethal; lethal.load(0); lethal.health = 1; lethal.level.coins.push_back({{185, 522, 16, 16}});
     lethal.player.body.x = 185; ticks(lethal, 1);
     expect(lethal.dead && !lethal.level.coins.back().collected && lethal.scoring.total() == 0, "Death frame must not collect a coin");
     // 第四组：相同种子和操作可重现，新种子覆盖 5–15 的端点，更新过程不重抽参数。
@@ -150,4 +150,5 @@ void runEconomyTests() {
         "Endless extension must preserve old spike parameters and state");
 }
 }
+
 

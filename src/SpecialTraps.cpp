@@ -20,7 +20,7 @@ bool hitOverheadTrap(const OverheadTrap& trap, World& world) {
     const auto bounds = overheadBounds(trap, world);
     const Rect hit{bounds.x + 5, bounds.y, bounds.w - 10, bounds.h - 6};
     if (!overlaps(world.player.body, hit)) return false;
-    world.die(trap.style == TrapStyle::Crusher ? L"你被上下夹击陷阱击中了" : L"你撞上了倒挂尖刺");
-    return true;
+    world.hurt(trap.style == TrapStyle::Crusher ? L"你被上下夹击陷阱击中了" : L"你撞上了倒挂尖刺");
+    return world.dead;
 }
 }

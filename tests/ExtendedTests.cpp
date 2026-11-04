@@ -44,6 +44,15 @@ bool travelTo(World& world, float target) {
 }
 }
 void runExtendedTests() {
+    // 五点血、无敌窗口、致命伤害和重生恢复均由独立血量系统管理。
+    World blood; require(blood.health == 5, "Initial health must be five");
+    blood.hurt(L"测试受伤"); require(blood.health == 4 && !blood.dead, "First hit must cost one health");
+    blood.hurt(L"重复接触"); require(blood.health == 4, "Invulnerability must block repeated damage");
+    for (int i = 0; i < 4; ++i) { blood.updateBlood(1.01f); blood.hurt(L"测试受伤"); }
+    require(blood.health == 0 && blood.dead && blood.deaths == 1, "Fifth hit must kill once");
+    blood.hurt(L"重复死亡"); require(blood.deaths == 1, "Death must be idempotent");
+    blood.respawn(); require(blood.health == 5 && blood.hurtCooldown == 0, "Respawn must restore health");
+
     // 输入回归：W 单次起跳、A/D 左右、S 快落，旧方向键和空格不再操纵角色。
     bool keys[256]{}, previous[256]{};
     keys['W'] = keys['A'] = keys['S'] = true;
@@ -131,7 +140,7 @@ void runExtendedTests() {
     require(bridge.level.fragile[0].collapsed && bridge.player.body.y > 462, "Fragile bridge must collapse and let player fall");
     bridge.die(L"验证断桥重生"); bridge.respawn();
     require(!bridge.level.fragile[0].collapsed, "Respawn must restore fragile platforms");
-    bridge.player.body = bridge.level.saws[0].body;
+    bridge.health = 1; bridge.player.body = bridge.level.saws[0].body;
     steps(bridge, 1);
     require(bridge.dead, "Moving saw must be lethal");
     // 第三组：子弹击败巡逻敌人并计分；从上方踩击也可以消灭敌人。
@@ -143,7 +152,7 @@ void runExtendedTests() {
     steps(enemy, 5);
     require(!enemy.dead && !enemy.level.enemies[0].alive && enemy.player.vy < 0, "Stomping must defeat enemy and bounce player");
     // 第四组：激光在亮起期致命，在熄灭期允许同一位置通过。
-    World laser; laser.load(3); laser.player.body = {430, 462, 24, 28}; steps(laser, 1);
+    World laser; laser.load(3); laser.health = 1; laser.player.body = {430, 462, 24, 28}; steps(laser, 1);
     require(laser.dead, "Active laser must kill player");
     laser.restart(); laser.elapsed = 2; laser.player.body = {430, 462, 24, 28}; steps(laser, 1);
     require(!laser.dead, "Inactive laser must allow passage");
@@ -156,6 +165,7 @@ void runExtendedTests() {
     boss.player.body = boss.level.goal; steps(boss, 1);
     require(boss.won, "Defeated boss must unlock goal");
     boss.restart(); boss.player.body = {2070, 332, 24, 28};
+    boss.health = 1;
     boss.projectiles.push_back({boss.player.body, 0, 0, 1, true}); steps(boss, 1);
     require(boss.dead, "Hostile boss bullet must kill player");
     // 第六组：真实移动越过十二段无尽平台，验证生成会延伸且不会意外通关。

@@ -75,7 +75,7 @@ void runAdventureTests() {
     // 第四组：弹簧从上方触发，落刺先预警、再致命，重生恢复机关。
     World spring = emptyWorld(); spring.level.springs = {{{60, 542, 30, 8}}}; ticks(spring, 1);
     ensure(spring.player.vy == -820 && spring.player.jumpsLeft == 1 && !spring.player.grounded, "Spring must launch and retain an air jump");
-    World falling = emptyWorld(); falling.level.fallingSpikes = {{{60, 150, 24, 32}, 150}};
+    World falling = emptyWorld(); falling.health = 1; falling.level.fallingSpikes = {{{60, 150, 24, 32}, 150}};
     falling.player.body = {60, 230, 24, 28}; falling.player.grounded = false;
     finishAdventure(falling, FixedStep);
     ensure(falling.level.fallingSpikes[0].phase == FallingPhase::Warning && !falling.dead, "Falling spike must warn before moving");

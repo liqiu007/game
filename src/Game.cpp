@@ -394,8 +394,9 @@ void Game::render() const {
     label(static_cast<int>(goal.x) - 4, static_cast<int>(goal.y) - 30, L"终点", 18, RGB(255, 221, 132));
     drawCombatScene(world);
     // 绘制步骤七：鲸鱼娘随奔跑、起跳和落地播放动作，HUD 显示本关探索奖励。
-    if (!world.dead) drawPlayer(world, menu.settings.playerPalette);
+    if (!world.dead && (world.hurtCooldown <= 0 || static_cast<int>(world.hurtCooldown * 12) % 2 == 0)) drawPlayer(world, menu.settings.playerPalette);
     label(440, 52, (world.endless ? L"无限重生" : L"体力 " + std::to_wstring(world.stamina) + L" / 10"), 18, world.stamina <= 2 ? RGB(255, 128, 116) : RGB(127, 225, 170));
+    label(650, 80, L"血量 " + std::to_wstring(world.health) + L" / 5", 18, world.health <= 2 ? RGB(255,100,100) : RGB(127,225,170));
     label(440, 80, L"金币 " + std::to_wstring(world.scoring.coinsCollected()), 18, RGB(255, 218, 92));
     // 血滴使用世界坐标和当前镜头，短拖尾显示飞溅方向，末段缩小消失。
     for (const auto& p : world.deathBurst.drops) {

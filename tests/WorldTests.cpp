@@ -79,6 +79,7 @@ int runSelfTests() {
         step(w, 150);
         check(w.player.grounded && w.player.jumpsLeft == 2, "Landing must replenish jumps");
         // 测试二：触碰尖刺后冻结物理与计时，重复死亡请求不重复增加次数。
+        w.health = 1; // 验证最后一点血耗尽后的死亡流程。
         w.player.body.x = 185;
         w.update({}, FixedStep);
         check(w.dead && w.deaths == 1 && w.player.body.x == 185, "Spike must show death screen before respawn");
@@ -206,6 +207,7 @@ int runSelfTests() {
         trapTest.die(L"验证重生"); trapTest.respawn();
         check(trapTest.spikeActivity.traps[0].phase == SpikePhase::Idle, "Respawn should rearm traps");
         // 测试十四：原本位于短尖刺上方的角色会被伸长部分击中；死亡后机关冻结且不加分。
+        trapTest.health = 1;
         trapTest.player.body = {210, 440, 24, 28};
         trapTest.player.grounded = false;
         step(trapTest, 50);
@@ -284,7 +286,7 @@ int runSelfTests() {
         menu.home(); menu.selected = 4;
         check(menu.activate() == MenuAction::Exit, "Exit button must return exit action");
         // 测试二十：倒挂尖刺判定致命，夹击上排与下排使用完全相同的伸缩进度。
-        World special;
+        World special; special.health = 1;
         const auto ceiling = special.level.overheadTraps[0];
         special.player.body = {ceiling.body.x + 6, ceiling.body.y + 20, 24, 28};
         check(hitOverheadTrap(ceiling, special) && special.dead, "Ceiling spike must kill on contact");

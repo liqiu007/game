@@ -130,7 +130,7 @@ bool finishAdventure(World& w, float dt) {
             if (f.timer <= 0) { f.body.y = f.homeY; f.speed = 0; f.phase = FallingPhase::Idle; }
         }
         if (overlaps(w.player.body, {f.body.x + 4, f.body.y + 4, f.body.w - 8, f.body.h - 4})) {
-            w.die(L"你被预警后落下的尖刺击中了"); return false;
+            w.hurt(L"你被预警后落下的尖刺击中了"); if (w.dead) return false;
         }
     }
     // 第三步：存活后才收集星羽；每关一枚，死亡保留，重开通过重建关卡恢复。

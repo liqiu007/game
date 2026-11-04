@@ -53,6 +53,7 @@ void World::resetPlayer() {
     // 第一步：复位机关与死亡标记，保留本局累计积分和存档点。
     spikeActivity.reset(level.spikes, spikeRandom);
     resetAdventure(*this);
+    resetBlood();
     dead = false;
     deathBurst.clear();
     deathReason.clear();
@@ -69,6 +70,7 @@ void World::resetPlayer() {
 void World::die(const wchar_t* reason) {
     // 已死亡或已通关不重复处理；记录原因、死亡次数和分数快照。
     if (dead || won) return;
+    health = 0;
     dead = true;
     // 深渊死亡将喷溅位置限制在画面底部，让反馈仍可见。
     deathBurst.emit(player.body.x + player.body.w / 2,
@@ -84,6 +86,7 @@ void World::restart() {
 void World::update(const Input& input, float dt) {
     // 第一步：结算后冻结世界；正常更新时保存上一步状态用于判断新得分。
     if (won || dead) return;
+    updateBlood(dt);
     extendEndless();
     const Player before = player;
     elapsed += dt;
@@ -140,7 +143,7 @@ void World::update(const Input& input, float dt) {
         // 碰撞矩形略小于绘制三角形外框，减少边缘接触造成的误伤。
         const Rect hit{spike.x + 5, spike.y + 6, spike.w - 10, spike.h - 6};
         if (overlaps(player.body, hit)) {
-            die(spike.h > level.spikes[i].h + 1 ? L"你被突然伸长的尖刺刺中了" : L"你撞上了尖刺");
+            hurt(spike.h > level.spikes[i].h + 1 ? L"你被突然伸长的尖刺刺中了" : L"你撞上了尖刺");
             return;
         }
     }
