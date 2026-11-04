@@ -65,7 +65,7 @@ void runExtendedTests() {
     World stun; stun.player.body = {50,200,24,28};
     stun.projectiles.push_back({stun.player.body,0,0,2,true,ShotKind::Equation});
     updateCombat(stun, {}, stun.player, FixedStep);
-    require(stun.player.stun == 10 && stun.health == 5, "GPT must stun for ten seconds without damage");
+    require(stun.player.stun == 10 && stun.health == World::MaxHealth, "GPT must stun for ten seconds without damage");
     const float oldX = stun.player.body.x; stun.update({false,true,true,true},FixedStep);
     require(stun.player.body.x == oldX && stun.player.stun < 10, "Stun must block movement and count down");
     stun.player.body = {60,522,24,28}; stun.player.vy = 0;
@@ -74,15 +74,13 @@ void runExtendedTests() {
     World axe; axe.player.body = {60,200,24,28};
     axe.level.enemies = {{{80,200,26,28},70,100,0,1,true,2,1.4f}};
     updateCombat(axe,{},axe.player,FixedStep);
-    require(axe.health == 3 && !axe.dead, "Grok axe must deal two damage");
-    // 五点血、无敌窗口、致命伤害和重生恢复均由独立血量系统管理。
-    World blood; require(blood.health == 5, "Initial health must be five");
-    blood.hurt(L"测试受伤"); require(blood.health == 4 && !blood.dead, "First hit must cost one health");
-    blood.hurt(L"重复接触"); require(blood.health == 4, "Invulnerability must block repeated damage");
-    for (int i = 0; i < 4; ++i) { blood.updateBlood(1.01f); blood.hurt(L"测试受伤"); }
-    require(blood.health == 0 && blood.dead && blood.deaths == 1, "Fifth hit must kill once");
+    require(axe.dead && axe.health == 0, "Grok axe must kill a one-health player");
+    // 一滴血、致命伤害和重生恢复均由独立血量系统管理。
+    World blood; require(blood.health == 1, "Initial health must be one");
+    blood.hurt(L"测试受伤");
+    require(blood.health == 0 && blood.dead && blood.deaths == 1, "Single hit must kill");
     blood.hurt(L"重复死亡"); require(blood.deaths == 1, "Death must be idempotent");
-    blood.respawn(); require(blood.health == 5 && blood.hurtCooldown == 0, "Respawn must restore health");
+    blood.respawn(); require(blood.health == 1 && blood.hurtCooldown == 0, "Respawn must restore health");
 
     // 输入回归：W 单次起跳、A/D 左右、S 快落，旧方向键和空格不再操纵角色。
     bool keys[256]{}, previous[256]{};

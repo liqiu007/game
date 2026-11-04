@@ -1,4 +1,4 @@
-// 玩家血量系统：初始五点，受伤后短暂无敌，耗尽时统一结算死亡。
+// 玩家血量系统：初始一滴血，任何伤害都会清空血量并触发死亡结算。
 #include "World.h"
 #include <algorithm>
 namespace game {

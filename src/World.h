@@ -118,8 +118,8 @@ public:
     // 关卡必须先初始化，随后才能依据尖刺布局构建活动分组。
     Level level = Level::tutorial();
     Player player;
-    // 血量由 blood.cpp 管理，与重生体力分别计算。
-    static constexpr int MaxHealth = 5;
+    // 血量由 blood.cpp 管理，与重生体力分别计算；玩家只有一滴血，任何伤害都会直接死亡。
+    static constexpr int MaxHealth = 1;
     int health = MaxHealth;
     float hurtCooldown = 0;
     void resetBlood();
