@@ -58,10 +58,30 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
                 w.projectiles.push_back({{boss.x, boss.y + 32, 10, 10}, dx / length * 230, dy / length * 230 + spread, 4, true});
         }
     }
+    // 炮台在附近按模拟时间射击，子弹只沿 X 轴飞行；暂停时计时冻结。
+    for (auto& cannon : w.level.cannons) {
+        if (std::abs(w.player.body.x - cannon.body.x) > 850) continue;
+        cannon.timer += dt;
+        if (cannon.timer >= cannon.period) {
+            cannon.timer -= cannon.period;
+            w.projectiles.push_back({{cannon.body.x - 12, cannon.body.y + 8, 12, 8}, 260.0f * cannon.direction, 0, 2.5f, true});
+        }
+    }
+    // 隐藏拳头只在脚踩顶面时触发，提供一次空中跳跃以便落回平台。
+    for (auto& fist : w.level.fists) {
+        fist.timer = std::max(0.0f, fist.timer - dt);
+        if (fist.timer <= 0 && w.player.grounded && w.player.body.right() > fist.body.x &&
+            w.player.body.x < fist.body.right() && std::abs(w.player.body.bottom() - fist.body.bottom()) < 1) {
+            fist.timer = 1.5f; w.player.vy = -900; w.player.grounded = false;
+            w.player.jumpsLeft = 1; w.player.standingSky = -1;
+            w.player.coyote = w.player.jumpCut = w.player.jumpBuffer = 0;
+            w.player.stretch = 1;
+        }
+    }
     // 第六步：推进子弹，处理命中并删除过期对象，避免弹丸无限累积。
     for (auto& shot : w.projectiles) {
         shot.body.x += shot.vx * dt; shot.body.y += shot.vy * dt; shot.life -= dt;
-        if (shot.hostile && overlaps(shot.body, w.player.body)) { w.die(L"你被 BOSS 弹幕击中了"); return false; }
+        if (shot.hostile && overlaps(shot.body, w.player.body)) { w.die(L"你被敌方子弹击中了"); return false; }
         if (!shot.hostile) {
             for (auto& enemy : w.level.enemies)
                 if (enemy.alive && overlaps(shot.body, enemy.body)) {

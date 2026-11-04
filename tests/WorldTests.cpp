@@ -250,9 +250,11 @@ int runSelfTests() {
         check(menu.page == Page::Modes && menu.itemCount() == 3, "Home must open game modes before level selection");
         menu.activate();
         check(menu.page == Page::Levels && menu.itemCount() == 16, "Campaign must contain five levels and back");
-        check(menu.activate() == MenuAction::Start && menu.page == Page::Playing && menu.hasSession, "Level selection must start the only level");
+        check(menu.activate() == MenuAction::Start && menu.page == Page::Playing && !menu.hasSession, "Level selection must start the only level");
         menu.home();
-        check(menu.selected == 1 && menu.activate() == MenuAction::Continue, "Returning home must allow continuing current session");
+        check(!menu.enabled(1), "Campaign must not enable continue");
+        menu.page = Page::Modes; menu.selected = 1; menu.activate(); menu.home();
+        check(menu.selected == 1 && menu.activate() == MenuAction::Continue && menu.endlessMode, "Continue must restore endless mode");
         // 测试十九：三项设置真实切换，返回页面不影响是否能继续游戏。
         menu.home();
         menu.selected = 3;

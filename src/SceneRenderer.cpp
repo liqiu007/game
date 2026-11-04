@@ -216,6 +216,18 @@ void drawCombatScene(const World& w) {
         fill(330, 120, 330 + w.bossHealth * 25, 134, RGB(233, 75, 91));
         text(345, 140, L"BOSS  " + std::to_wstring(w.bossHealth) + L" / 12   J 射击", RGB(255, 214, 183));
     }
+    // 炮口在发射前亮起，拳头只在踩踏后短暂伸出，平时仅显示地板接缝。
+    for (const auto& cannon : w.level.cannons) {
+        box(cannon.body, RGB(75, 90, 110));
+        box({cannon.body.x - 8, cannon.body.y + 6, 12, 12}, cannon.timer > cannon.period - 0.5f ? RGB(255, 115, 70) : RGB(140, 160, 180));
+    }
+    for (const auto& fist : w.level.fists) {
+        box(fist.body, RGB(65, 70, 78));
+        if (fist.timer > 1.15f) {
+            box({fist.body.x + 12, fist.body.y - 38, 8, 38}, RGB(190, 200, 210));
+            box({fist.body.x, fist.body.y - 54, 32, 22}, RGB(245, 115, 80));
+        }
+    }
     for (const auto& shot : w.projectiles) box(shot.body, shot.hostile ? RGB(255, 98, 99) : RGB(255, 231, 102));
 }
 }

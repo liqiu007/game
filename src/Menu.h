@@ -16,6 +16,7 @@ struct GameSettings {
 class Menu {
 public:
     Page page = Page::Home;
+    // 仅表示本次运行中是否存在可恢复的无尽世界。
     bool hasSession = false;
     int selected = 0;
     int chosenLevel = 0;
@@ -33,7 +34,7 @@ public:
     MenuAction activate();
     void home();
     void back();
-    // 绘制主页面、模式页、五关选择页和设置页，不推进世界计时。
+    // 绘制主页面、模式页、十五关选择页和设置页，不推进世界计时。
     void render() const;
 private:
     int hit(int x, int y) const;

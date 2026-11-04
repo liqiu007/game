@@ -39,7 +39,7 @@ std::wstring Menu::itemText(int index) const {
     if (index < 0 || index >= itemCount()) return L"";
     // 为每种页面生成实际状态文字；设置按钮直接显示当前值。
     if (page == Page::Home) {
-        const wchar_t* items[]{L"开始游戏", L"继续游戏", L"游戏模式", L"设置", L"退出游戏", L"游戏商店"};
+        const wchar_t* items[]{L"开始游戏", L"继续无尽模式", L"游戏模式", L"设置", L"退出游戏", L"游戏商店"};
         return index >= 0 && index < 6 ? items[index] : L"";
     }
     if (page == Page::Shop) {
@@ -109,7 +109,7 @@ MenuAction Menu::activate() {
     // 第一步：禁止禁用项执行，主页面决定打开子页面还是启动游戏。
     if (!enabled(selected)) return MenuAction::None;
     if (page == Page::Home) {
-        if (selected == 1) { page = Page::Playing; return MenuAction::Continue; }
+        if (selected == 1) { endlessMode = true; page = Page::Playing; return MenuAction::Continue; }
         if (selected == 4) return MenuAction::Exit;
         page = selected == 5 ? Page::Shop : (selected == 3 ? Page::Settings : Page::Modes);
         selected = 0;
@@ -120,7 +120,7 @@ MenuAction Menu::activate() {
         else home();
     } else if (page == Page::Levels) {
         // 十五关按进度解锁；通关后还可在游戏内按 Enter 顺序进入下一关。
-        if (selected < 15) { chosenLevel = selected; endlessMode = false; hasSession = true; page = Page::Playing; return MenuAction::Start; }
+        if (selected < 15) { chosenLevel = selected; endlessMode = false; page = Page::Playing; return MenuAction::Start; }
         back();
     } else if (page == Page::Shop) {
         // 原子保存成功才扣款，已拥有的配色再次点击只装备。
@@ -179,7 +179,7 @@ void Menu::render() const {
             arc(ButtonX + 307, y + 8, ButtonX + 327, y + 29, 0, 3.14159265);
             solidrectangle(ButtonX + 303, y + 21, ButtonX + 331, y + 38);
         }
-        if (page == Page::Home && i == 1 && !hasSession) text(ButtonX + 205, y + 15, L"暂无本次进度", 14, RGB(89, 104, 122));
+        if (page == Page::Home && i == 1 && !hasSession) text(ButtonX + 205, y + 15, L"暂无无尽进度", 14, RGB(89, 104, 122));
     }
 
     if (page == Page::Shop) {

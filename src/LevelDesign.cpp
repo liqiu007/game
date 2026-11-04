@@ -1,4 +1,4 @@
-// 五关配置与无尽地图生成：关卡共享基础操作，主题、机关和通关目标各不相同。
+// 十五关配置与无尽地图生成：关卡共享基础操作，主题、机关和通关目标各不相同。
 #include "World.h"
 #include "AdventureMechanics.h"
 #include <algorithm>
@@ -57,8 +57,16 @@ Level Level::campaign(int index) {
     for (int i = 0; i < 6 + stage / 5 * 3; ++i) {
         float x = result.platforms.back().right() + 60, y = 360 + (i % 3) * 40.0f;
         result.platforms.push_back({x, y, 190, 24}); result.platformScores.push_back(250);
+        // 扩展路段交替配置机关，入口保留落脚空间，出口平台留给结算。
+        if (i % 3 == 0) result.fragile.push_back({result.platforms.size() - 1});
+        else if (i % 3 == 1) result.lasers.push_back({{x + 130, y - 105, 10, 105}, 4.2f, 0.7f, 1.5f});
+        else result.overheadTraps.push_back({{x + 100, y - 190, 24, 42}, TrapStyle::Ceiling});
+        if (stage == 5 && i % 3 == 1) result.cannons.push_back({{x + 160, y - 24, 24, 24}, -1, 2.6f});
+        if (stage == 6 && i % 3 == 1) result.fists.push_back({{x + 80, y - 4, 32, 4}});
         if (i % 2 == 0) result.enemies.push_back({{x + 80, y - 28, 26, 28}, x + 30, x + 155});
     }
+    if (stage == 5) result.name = L"第6关 · 水平弹幕";
+    if (stage == 6) result.name = L"第7关 · 隐藏拳头";
     const auto end = result.platforms.back();
     result.goal = {end.x + 130, end.y - 52, 32, 52}; result.width = end.right();
     for (auto& enemy : result.enemies) enemy.avatar = avatar();

@@ -45,6 +45,8 @@ bool World::respawn() {
 }
 void World::resetPlayer() {
     // 重生恢复战斗机关，积分记录仍保留，避免靠反复重生刷分。
+    for (auto& cannon : level.cannons) cannon.timer = 0;
+    for (auto& fist : level.fists) fist.timer = 0;
     projectiles.clear(); bossHealth = 12; bossTimer = 0; shootCooldown = 0; facing = 1;
     for (auto& f : level.fragile) { f.timer = 0.65f; f.touched = false; f.collapsed = false; }
     for (auto& e : level.enemies) { e.body.x = e.left; e.alive = true; e.direction = 1; }

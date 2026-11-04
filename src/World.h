@@ -50,6 +50,9 @@ struct FragilePlatform { std::size_t index; float timer = 0.65f; bool touched = 
 struct Enemy { Rect body; float left, right, speed = 65; int direction = 1; bool alive = true; int avatar = -1; };
 struct Laser { Rect body; float period = 3.4f, activeSeconds = 1.2f, offset = 0; };
 struct Saw { Rect body; float originX, range, rate; };
+// 水平炮台按固定周期射击；拳头藏在平台内，踩踏后弹出并进入冷却。
+struct HorizontalCannon { Rect body; int direction = -1; float period = 2.6f, timer = 0; };
+struct SpringFist { Rect body; float timer = 0; };
 struct Projectile { Rect body; float vx, vy, life = 3; bool hostile = false; };
 // 特殊陷阱保持世界坐标；夹击类型关联现有地面尖刺，使上下两侧同步动作。
 enum class TrapStyle { Ceiling, Crusher };
@@ -97,6 +100,8 @@ struct Level {
     std::vector<FallingSpike> fallingSpikes;
     std::vector<Feather> feathers;
     std::vector<Coin> coins;
+    std::vector<HorizontalCannon> cannons;
+    std::vector<SpringFist> fists;
     // 创建第一关的基础路线：10 个平台、4 组地面尖刺、倒刺与夹击机关。
     static Level tutorial();
     // 闯关模式按编号创建十五关、循环五种主题；无尽模式在前方继续生成可跳跃的平台。

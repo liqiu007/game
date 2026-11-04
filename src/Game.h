@@ -2,6 +2,7 @@
 #pragma once
 #include "World.h"
 #include "Menu.h"
+#include <optional>
 
 namespace game {
 // 验证模式只改变启动场景；正常游戏使用 None。
@@ -13,6 +14,8 @@ public:
 private:
     // 世界保存游戏规则状态；暂停只控制主循环是否推进世界。
     World world;
+    // 切换到闯关时保存本次无尽世界，继续菜单只恢复此快照。
+    std::optional<World> endlessSession;
     bool paused = false;
     // 结算动画独立于被冻结的世界时间。
     float victoryAge = 0;

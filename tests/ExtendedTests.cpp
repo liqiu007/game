@@ -97,6 +97,26 @@ void runExtendedTests() {
     require(cards.itemText(15) == L"返回游戏模式", "Back card title invalid");
     require(cards.itemText(-1).empty() && cards.itemText(16).empty(), "Invalid card index accepted");
     cards.selected = 0; cards.hover(165,211); require(cards.selected == 0, "Card gap changed selection");
+    // 定时炮台必须水平发射；重生会清除弹丸与发射计时。
+    World cannon; cannon.load(5);
+    require(!cannon.level.cannons.empty(), "Chapter six cannon missing");
+    const auto gun = cannon.level.cannons.front();
+    cannon.player.body = {gun.body.x - 200, gun.body.y - 100, 24, 28};
+    cannon.level.cannons.front().timer = gun.period - FixedStep;
+    const Player beforeGun = cannon.player;
+    require(updateCombat(cannon, {}, beforeGun, FixedStep), "Cannon update killed distant player");
+    require(!cannon.projectiles.empty() && cannon.projectiles.back().hostile && cannon.projectiles.back().vy == 0 && cannon.projectiles.back().vx < 0, "Cannon must fire horizontally");
+    cannon.die(L"测试复位"); cannon.respawn();
+    require(cannon.projectiles.empty() && cannon.level.cannons.front().timer == 0, "Cannon reset failed");
+    // 隐藏拳头脚踩即弹飞，冷却期间不能连续触发，重生重新隐藏。
+    World punch; punch.load(6); require(!punch.level.fists.empty(), "Chapter seven fist missing");
+    const auto pad = punch.level.fists.front().body;
+    punch.player.body = {pad.x, pad.bottom() - 28, 24, 28}; punch.player.grounded = true;
+    const Player beforePunch = punch.player;
+    require(updateCombat(punch, {}, beforePunch, FixedStep), "Fist update failed");
+    require(punch.player.vy == -900 && !punch.player.grounded && punch.level.fists.front().timer > 1, "Fist did not launch player");
+    punch.die(L"测试复位"); punch.respawn();
+    require(punch.level.fists.front().timer == 0, "Fist did not hide on respawn");
     Menu menu; menu.page = Page::Modes; menu.selected = 1;
     require(menu.activate() == MenuAction::Start && menu.endlessMode, "Endless mode must start directly");
     menu.home(); menu.page = Page::Levels; menu.selected = 4;
@@ -155,14 +175,14 @@ void runExtendedTests() {
     require(endless.scoring.total() == score, "Generation must not award old platforms again");
     endless.restart();
     require(endless.endless && endless.scoring.total() == 0 && endless.player.body.x == 60, "Endless restart must reset run but keep mode");
-    // 第七组：五关实际配置均使用真实等待、跳跃、射击走到终点，包含新增高路的影响。
-    for (int chapter = 0; chapter < 5; ++chapter) {
+    // 第七组：十五关实际配置均使用真实等待、跳跃、射击走到终点，包含新增高路的影响。
+    for (int chapter = 0; chapter < 15; ++chapter) {
         World route; route.load(chapter);
         baitNearby(route);
         for (float target : {365.0f, 555.0f, 780.0f, 970.0f, 1180.0f, 1410.0f, 1640.0f, 1870.0f, 2080.0f}) {
             if (!travelTo(route, target)) throw std::runtime_error("Campaign route blocked: chapter=" + std::to_string(chapter + 1) + ", target=" + std::to_string(static_cast<int>(target)) + ", x=" + std::to_string(route.player.body.x) + ", dead=" + std::to_string(route.dead));
         }
-        if (chapter == 4) {
+        if (chapter % 5 == 4) {
             // 在竞技场尝试不同跳跃节奏躲弹，必须击败完整血量的 BOSS 才继续。
             bool defeated = false;
             for (int period : {70, 90, 110, 130, 160, 200}) {

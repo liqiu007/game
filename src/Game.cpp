@@ -185,7 +185,7 @@ int Game::run(Preview preview) {
             }
         }
         if (menu.page != Page::Playing) {
-            // 第五步：菜单期间冻结模拟。新游戏清空旧进度，继续游戏只恢复页面。
+            // 第五步：菜单期间冻结模拟；闯关与无尽世界分开，继续只恢复无尽快照。
             MenuAction action = MenuAction::None;
             if (pressed(VK_ESCAPE) || pressed('A')) menu.back();
             else {
@@ -194,7 +194,11 @@ int Game::run(Preview preview) {
                 if (clicked) action = menu.click(clickX, clickY);
                 else if (pressed(VK_RETURN) || pressed('D')) action = menu.activate();
             }
-            if (action == MenuAction::Start) world.load(menu.chosenLevel, menu.endlessMode);
+            if (action == MenuAction::Start) {
+                if (world.endless) endlessSession = world;
+                world.load(menu.chosenLevel, menu.endlessMode);
+            }
+            if (action == MenuAction::Continue && !world.endless && endlessSession) world = *endlessSession;
             if (action == MenuAction::Start || action == MenuAction::Continue) paused = false;
             if (action == MenuAction::Exit) running = false;
             accumulator = 0;
