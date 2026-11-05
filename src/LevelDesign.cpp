@@ -53,9 +53,8 @@ Level Level::campaign(int index) {
         result.lasers = {{{430, 335, 12, 155}, 3.4f, 1.2f, 0}, {{1035, 270, 12, 155}, 3.8f, 1.3f, 1.8f},
             {{1460, 255, 12, 160}, 3.6f, 1.2f, 0.7f}, {{1930, 265, 12, 155}, 3.8f, 1.1f, 2.0f}};
     }
-    // 第五步：最后一关保留前半段挑战，在终点平台设置需要击败的 BOSS。
+    // 第五步：BOSS 主题关保留前半段挑战；BOSS 本身在计算完终点后放到关卡最后。
     if (index == 4) {
-        result.boss = true;
         result.enemies = {{{790, 337, 26, 28}, 755, 860}};
         result.lasers = {{{1450, 260, 12, 155}, 4.0f, 1.0f, 2.0f}};
         result.saws = {{{980, 335, 24, 24}, 980, 40, 1.3f}};
@@ -76,6 +75,15 @@ Level Level::campaign(int index) {
     }
     const auto end = result.platforms.back();
     result.goal = {end.x + 130, end.y - 52, 32, 52}; result.width = end.right();
+    // BOSS 与终点同在最后一关平台上，站在终点门右侧：第 5、10 关可以从容绕过，第 15 关必须击败它才开门。
+    if (index == 4) {
+        result.boss = true;
+        // 终点平台向右加长，给 BOSS 与终焉关的 Claude 留出站位。
+        result.platforms.back().w += 80.0f;
+        result.width = result.platforms.back().right();
+        result.bossBody = {result.goal.x + 40.0f, result.goal.y + result.goal.h - 72.0f, 56, 72};
+        result.bossGate = stage == 14;
+    }
     // 每关最多两面旗帜：第一面在出生区，第二面接近终点前；BOSS 关第二面提前收在竞技场之前。
     result.checkpoints.clear();
     const float flagStart = 555.0f;
@@ -104,6 +112,12 @@ Level Level::campaign(int index) {
         if (stage < 2) enemy.avatar = 2;
         else if (stage < 6) enemy.avatar = 1 + avatar() % 2;
         else enemy.avatar = avatar();
+    }
+    // 终焉关：Claude 站在终点门右侧、与 BOSS 一起守关，站着不动但持续甩出封禁图片。
+    if (stage == 14) {
+        result.banStorm = true;
+        result.enemies.push_back({{result.goal.x + 100.0f, result.goal.y + result.goal.h - 28.0f, 26, 28},
+            result.goal.x + 100.0f, result.goal.x + 100.0f, 0.0f, 1, true, 0});
     }
     for (std::size_t i = 0; i < result.platforms.size(); ++i) addRoadCoins(result, i);
     return result;

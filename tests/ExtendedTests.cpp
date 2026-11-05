@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <utility>
 #include <cmath>
+#include <algorithm>
 
 namespace game {
 namespace {
@@ -261,20 +262,37 @@ void runExtendedTests() {
     require(laser.dead, "Active laser must kill player");
     laser.restart(); laser.elapsed = 2; laser.player.body = {430, 462, 24, 28}; steps(laser, 1);
     require(!laser.dead, "Inactive laser must allow passage");
-    // 第五组：BOSS 存活时锁定终点，命中最后一点生命后开放出口，弹幕仍可伤人。
-    World boss; boss.load(4); boss.player.body = boss.level.goal; steps(boss, 1);
-    require(!boss.won, "Living boss must lock goal");
-    boss.restart(); boss.bossHealth = 1; boss.player.body = {2070, 332, 24, 28};
+    // 第五组：第 5、10 关的 BOSS 可以选择绕过；第 15 关必须击败 BOSS，弹幕仍可伤人。
+    World optionalBoss; optionalBoss.load(4); optionalBoss.player.body = optionalBoss.level.goal; steps(optionalBoss, 1);
+    require(optionalBoss.won, "Optional boss must not lock the fifth chapter goal");
+    require(optionalBoss.level.boss && !optionalBoss.level.bossGate, "Fifth chapter must carry an optional boss");
+    World boss; boss.load(14); boss.player.body = boss.level.goal; steps(boss, 1);
+    require(!boss.won, "Living final boss must lock goal");
+    require(boss.level.bossGate, "Final chapter must require the boss");
+    boss.restart(); boss.level.enemies.clear(); boss.bossHealth = 1;
+    boss.player.body = {boss.level.bossBody.x - 45.0f, boss.level.bossBody.y + boss.level.bossBody.h - 28.0f, 24, 28};
     steps(boss, 25, {false, false, false, true});
     require(boss.bossHealth == 0 && !boss.dead && boss.scoring.total() >= 1000, "Shooting must defeat boss and grant reward");
     boss.player.body = boss.level.goal; steps(boss, 1);
     require(boss.won, "Defeated boss must unlock goal");
-    boss.restart(); boss.player.body = {2070, 332, 24, 28};
-    boss.health = 1;
+    boss.restart(); boss.level.enemies.clear(); boss.health = 1;
     boss.projectiles.push_back({boss.player.body, 0, 0, 1, true}); steps(boss, 1);
     require(boss.dead, "Hostile boss bullet must kill player");
-    // 2026-11-04 起第五关 BOSS 弹幕放慢：满血每 2 秒才打一轮，三发弹速降到 160 像素每秒。
-    World slowBoss; slowBoss.load(4); slowBoss.level.enemies.clear(); slowBoss.player.body = {2050, 332, 24, 28};
+    // 终焉关的 Claude 与 BOSS 一起守在关卡最后，并按 0.9 秒的间隔持续甩出封禁图片。
+    World storm; storm.load(14);
+    std::size_t guardIndex = storm.level.enemies.size();
+    for (std::size_t i = 0; i < storm.level.enemies.size(); ++i)
+        if (storm.level.enemies[i].avatar == 0 && storm.level.enemies[i].body.x > storm.level.goal.x + 50.0f) { guardIndex = i; break; }
+    require(guardIndex < storm.level.enemies.size(), "Final chapter must place Claude next to the boss at the level end");
+    const Enemy guard = storm.level.enemies[guardIndex];
+    storm.level.enemies.assign(1, guard);
+    storm.player.body = {guard.body.x - 200.0f, guard.body.y, 24, 28};
+    steps(storm, 60); require(storm.projectiles.empty(), "Final Claude must hold fire until its storm interval");
+    steps(storm, 60);
+    require(!storm.projectiles.empty() && storm.projectiles.front().kind == ShotKind::Ban, "Final Claude must keep throwing ban images");
+    // 2026-11-04 起 BOSS 弹幕放慢：满血每 2 秒才打一轮，三发弹速降到 160 像素每秒。
+    World slowBoss; slowBoss.load(14); slowBoss.level.enemies.clear();
+    slowBoss.player.body = {slowBoss.level.bossBody.x - 120.0f, slowBoss.level.bossBody.y + slowBoss.level.bossBody.h - 28.0f, 24, 28};
     steps(slowBoss, 200); require(slowBoss.projectiles.empty(), "Boss must wait two seconds before the first volley");
     steps(slowBoss, 60); require(slowBoss.projectiles.size() == 3, "Slow boss must fire three bullets after two seconds");
     require(std::abs(slowBoss.projectiles[0].vx) < 200.0f, "Boss bullets must be slower than the old 230 pixels per second");
@@ -375,17 +393,19 @@ void runExtendedTests() {
         for (float target : {365.0f, 555.0f, 780.0f, 970.0f, 1180.0f, 1410.0f, 1640.0f, 1870.0f, 2080.0f}) {
             if (!travelTo(route, target)) throw std::runtime_error("Campaign route blocked: chapter=" + std::to_string(chapter + 1) + ", target=" + std::to_string(static_cast<int>(target)) + ", x=" + std::to_string(route.player.body.x) + ", dead=" + std::to_string(route.dead) + ", stun=" + std::to_string(route.player.stun) + ", shots=" + std::to_string(route.projectiles.size()) + ", grounded=" + std::to_string(route.player.grounded));
         }
-        if (chapter % 5 == 4) {
-            // 在竞技场尝试不同跳跃节奏躲弹，必须击败完整血量的 BOSS 才继续。
-            bool defeated = false;
-            for (int period : {70, 90, 110, 130, 160, 200}) {
-                World fight = route;
-                for (int tick = 0; tick < 1800 && !fight.dead && fight.bossHealth > 0; ++tick)
-                    fight.update({false, false, tick % period == 0, true}, FixedStep);
-                if (!fight.dead && fight.bossHealth <= 0) { route = fight; defeated = true; break; }
-            }
-            require(defeated, "Full-health BOSS must be defeatable while dodging projectiles");
-            // BOSS 倒下后残留弹幕仍会致命，清理后只验证收尾路线的可通过性。
+        if (chapter == 14) {
+            // 先移除守在门口的 Claude（它的站位与持续封禁由第五组用例单独验证），只验证 BOSS 门。
+            route.level.enemies.erase(std::remove_if(route.level.enemies.begin(), route.level.enemies.end(),
+                [&route](const Enemy& e) { return e.avatar == 0 && e.body.x > route.level.goal.x + 50.0f; }),
+                route.level.enemies.end());
+            // 终焉关的 BOSS 守在关卡最后的终点门旁，扩展段行进期间先关闭它，避免远程弹幕干扰地形通过性；
+            // 走到终点平台后再恢复满血 BOSS，专门验证“必须击杀才能开门”。
+            route.level.boss = false;
+            route.projectiles.clear();
+        }
+        if (chapter % 5 == 4 && chapter != 14) {
+            // 第 5、10 关的 BOSS 不是通关条件：路线测试只验证终点可达，BOSS 本体由第五组用例覆盖。
+            route.level.boss = false;
             route.projectiles.clear();
         }
         // 第六关扩展段的水平炮台会在站立高度连续扫射，脚本无法稳定跳跃躲开；炮台本身由单独的
@@ -403,6 +423,37 @@ void runExtendedTests() {
                     ", boss=" + std::to_string(route.bossHealth) + ", won=" + std::to_string(route.won) +
                     ", codes=" + codes);
             }
+        }
+        if (chapter == 14) {
+            // 站在终点平台前半段，恢复满血 BOSS：终焉关必须击杀它才能走进终点门。
+            route.level.boss = true;
+            route.bossHealth = 12;
+            // 清掉扩展段残留的随机弹幕与敌人，单独验证“躲 BOSS 弹幕并击杀”这一段。
+            route.projectiles.clear();
+            route.level.enemies.clear();
+            route.player.body.x = route.level.bossBody.x - 130.0f;
+            route.player.body.y = route.level.bossBody.y + route.level.bossBody.h - route.player.body.h;
+            bool defeated = false;
+            for (int period : {70, 90, 110, 130, 160, 200}) {
+                World fight = route;
+                for (int tick = 0; tick < 1800 && !fight.dead && fight.bossHealth > 0; ++tick)
+                    fight.update({false, false, tick % period == 0, true}, FixedStep);
+                if (!fight.dead && fight.bossHealth <= 0) { route = fight; defeated = true; break; }
+            }
+            if (!defeated) throw std::runtime_error("Full-health BOSS must be defeatable while dodging projectiles: x=" +
+                std::to_string(route.player.body.x) + ", y=" + std::to_string(route.player.body.y) +
+                ", dead=" + std::to_string(route.dead) + ", stun=" + std::to_string(route.player.stun) +
+                ", boss=" + std::to_string(route.bossHealth) +
+                ", bx=" + std::to_string(route.level.bossBody.x) + ", by=" + std::to_string(route.level.bossBody.y) +
+                ", goal=" + std::to_string(route.level.goal.x) + ", proj=" + std::to_string(route.projectiles.size()));
+            // BOSS 倒下后再进终点门，验证门确实打开。
+            route.player.body = route.level.goal;
+            steps(route, 2);
+            require(route.won && !route.dead, "Final chapter gate must open after the boss falls");
+            // BOSS 倒下后残留弹幕与 Claude 的持续封禁仍会致命；终焉关的 Claude 由第五组用例单独验证，
+            // 这里清场后只验证收尾路线的可通过性。
+            route.projectiles.clear();
+            route.level.enemies.clear();
         }
         // 收尾段先直接小跑起跳；若终点在更高平台，再倒退几步尝试不同起跳时机。
         route.projectiles.clear();

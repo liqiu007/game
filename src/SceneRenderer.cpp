@@ -209,12 +209,15 @@ void drawCombatScene(const World& w) {
     }
     // 第三步：BOSS 显示身体与独立血条，生命归零后开放终点。
     // 进入竞技场后才显示血条，避免遮住前半段高路的落刺预警。
-    if (w.level.boss && w.bossHealth > 0 && w.player.body.x > 1730) {
-        box({2115, 288, 56, 72}, RGB(180, 50, 70));
-        box({2123, 304, 12, 10}, RGB(255, 215, 100)); box({2150, 304, 12, 10}, RGB(255, 215, 100));
+    if (w.level.boss && w.bossHealth > 0 && w.player.body.x > w.level.bossBody.x - 385.0f) {
+        box(w.level.bossBody, RGB(180, 50, 70));
+        box({w.level.bossBody.x + 8, w.level.bossBody.y + 16, 12, 10}, RGB(255, 215, 100));
+        box({w.level.bossBody.x + 35, w.level.bossBody.y + 16, 12, 10}, RGB(255, 215, 100));
         fill(330, 120, 630, 134, RGB(68, 27, 36));
         fill(330, 120, 330 + w.bossHealth * 25, 134, RGB(233, 75, 91));
-        text(345, 140, L"BOSS  " + std::to_wstring(w.bossHealth) + L" / 12   J 射击", RGB(255, 214, 183));
+        // 可选 BOSS 关在血条上直接说明不用击败，避免玩家误以为必须打完。
+        text(345, 140, L"BOSS  " + std::to_wstring(w.bossHealth) + L" / 12   J 射击" +
+            (w.level.bossGate ? L"" : L"（可绕过）"), RGB(255, 214, 183));
     }
     // 炮口在发射前亮起，拳头只在踩踏后短暂伸出，平时仅显示地板接缝。
     for (const auto& cannon : w.level.cannons) {

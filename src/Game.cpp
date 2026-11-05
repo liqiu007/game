@@ -131,10 +131,13 @@ int Game::run(Preview preview, bool debugSix) {
         for (int i = 0; i < 12; ++i) world.update({}, FixedStep);
     }
     // 主题预览定位到具有代表性的机关区域，真实关卡配置与正常游戏一致。
-    if (preview == Preview::Bridge || preview == Preview::Enemies || preview == Preview::Lasers || preview == Preview::Boss || preview == Preview::Endless) {
-        const int chapter = preview == Preview::Bridge ? 1 : (preview == Preview::Enemies ? 2 : (preview == Preview::Lasers ? 3 : 4));
+    if (preview == Preview::Bridge || preview == Preview::Enemies || preview == Preview::Lasers || preview == Preview::Boss || preview == Preview::Final || preview == Preview::Endless) {
+        const int chapter = preview == Preview::Bridge ? 1 : (preview == Preview::Enemies ? 2 : (preview == Preview::Lasers ? 3 : (preview == Preview::Boss ? 4 : 14)));
         world.load(chapter, preview == Preview::Endless);
-        if (preview == Preview::Boss) world.player.body = {2060, 332, 24, 28};
+        if (preview == Preview::Boss || preview == Preview::Final) {
+            // 停在新位置 BOSS 的左侧，画面同时拍到 BOSS 与终点门。
+            world.player.body = {world.level.bossBody.x - 220.0f, world.level.bossBody.y + world.level.bossBody.h - 28.0f, 24, 28};
+        }
         // 无尽预览停在开局二十段之后，让巡逻怪物、落刺与新机关一起进入画面。
         else if (preview == Preview::Endless) { world.player.body.x = 2000; world.extendEndless(); }
         else if (preview != Preview::Endless) world.player.body = {970, 397, 24, 28};
@@ -378,6 +381,7 @@ int Game::run(Preview preview, bool debugSix) {
             case Preview::Enemies: path = L"enemies-smoke-test.png"; break;
             case Preview::Lasers: path = L"lasers-smoke-test.png"; break;
             case Preview::Boss: path = L"boss-smoke-test.png"; break;
+            case Preview::Final: path = L"final-smoke-test.png"; break;
             case Preview::Endless: path = L"endless-smoke-test.png"; break;
             case Preview::Adventure: path = L"adventure-smoke-test.png"; break;
             case Preview::Exhausted: path = L"exhausted-smoke-test.png"; break;
@@ -444,7 +448,8 @@ void Game::render() const {
         box({flag.x + 3, flag.y, 24, 17}, active ? RGB(107, 255, 175) : RGB(55, 151, 115));
     }
     const auto goal = screenRect(world.level.goal);
-    box(goal, world.level.boss && world.bossHealth > 0 ? RGB(130, 80, 80) : RGB(234, 183, 80));
+    // 只有必须击败 BOSS 的第 15 关会在 BOSS 存活时把终点画成暗红色；第 5、10 关的终点始终开放。
+    box(goal, world.level.boss && world.level.bossGate && world.bossHealth > 0 ? RGB(130, 80, 80) : RGB(234, 183, 80));
     box({goal.x + 5, goal.y + 5, 22, 47}, RGB(76, 61, 42));
     label(static_cast<int>(goal.x) - 4, static_cast<int>(goal.y) - 30, L"终点", 18, RGB(255, 221, 132));
     drawCombatScene(world);

@@ -43,8 +43,11 @@ void runStarTests() {
     const auto time = w.elapsed; const auto score = w.scoring.total();
     w.update({false, true, true}, 10);
     requireStar(w.elapsed == time && w.scoring.total() == score && evaluateStars(w).count == 1, "Victory did not freeze result");
+    // 第 5 关的 BOSS 现在可以选择绕过；第 15 关仍必须击败 BOSS 才开放终点。
     w.load(4); w.player.body = w.level.goal; w.update({}, FixedStep);
-    requireStar(!w.won, "Boss chapter allowed victory before boss defeat");
+    requireStar(w.won, "Optional boss must not lock the fifth chapter goal");
+    w.load(14); w.player.body = w.level.goal; w.update({}, FixedStep);
+    requireStar(!w.won, "Final chapter must require the boss before victory");
     // 第四组：按钮边界及空白点击映射，防止全屏坐标转换后误操作。
     requireStar(victoryScreenClick(160, 506) == VictoryAction::Next &&
         victoryScreenClick(400, 530) == VictoryAction::Restart &&

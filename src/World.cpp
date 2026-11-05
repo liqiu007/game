@@ -178,7 +178,8 @@ void World::update(const Input& requestedInput, float dt) {
             checkpointActive = true;
         }
     }
-    if (!endless && overlaps(player.body, level.goal) && (!level.boss || bossHealth <= 0)) won = true;
+    // 终点判定：第 5、10 关的 BOSS 可以绕过，第 15 关必须击败 BOSS 才开门。
+    if (!endless && overlaps(player.body, level.goal) && (!level.boss || !level.bossGate || bossHealth <= 0)) won = true;
 }
 // 血量系统（原 blood.cpp 的三段逻辑并入本文件）：初始一滴血，受伤后 1 秒无敌，血量归零立即死亡。
 void World::resetBlood() { health = MaxHealth; hurtCooldown = 0; }

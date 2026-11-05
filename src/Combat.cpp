@@ -53,7 +53,7 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
                 if (overlaps(w.player.body, {enemy.body.x - 48, enemy.body.y - 12, 122, 52})) w.hurt(L"你被 Grok 的斧头击中了", 2);
                 if (w.dead) return false;
             }
-        } else if (enemy.attackTimer >= (enemy.avatar == 0 ? 4.0f : 1.0f)) {
+        } else if (enemy.attackTimer >= (enemy.avatar == 0 ? (w.level.banStorm ? 0.9f : 4.0f) : 1.0f)) {
             enemy.attackTimer = 0;
             static std::mt19937 rng(std::random_device{}());
             // GPT 射出的是一段字符串文字，弹丸自带显示内容；Claude 仍然甩出封禁图片。
@@ -89,10 +89,10 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
             600.0f * w.facing, 0, 2, false});
         w.shootCooldown = 0.22f;
     }
-    // 第五步：BOSS 仅在竞技场附近开火，血量过半后加快弹幕频率。
+    // 第五步：BOSS 只在靠近终点的竞技场开火，血量过半后加快弹幕频率。
     // 2026-11-04 起整体放慢：满血每 2 秒一轮、残血每 1.3 秒一轮，弹速由每秒 230 像素降到 160 像素。
-    const Rect boss{2115, 288, 56, 72};
-    if (w.level.boss && w.bossHealth > 0 && w.player.body.x > 1730) {
+    const Rect& boss = w.level.bossBody;
+    if (w.level.boss && w.bossHealth > 0 && w.player.body.x > boss.x - 385.0f) {
         w.bossTimer += dt;
         if (overlaps(w.player.body, boss)) { w.hurt(L"你撞上了 BOSS"); if (w.dead) return false; }
         if (w.bossTimer >= (w.bossHealth > 6 ? 2.0f : 1.3f)) {

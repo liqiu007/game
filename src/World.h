@@ -102,6 +102,12 @@ struct Level {
     std::vector<Laser> lasers;
     std::vector<Saw> saws;
     bool boss = false;
+    // BOSS 的站位按终点平台推导，三个 BOSS 关都守在关卡最后。
+    Rect bossBody;
+    // 是否必须击败 BOSS 才能进入终点：第 5、10 关可以选择绕过，第 15 关必须击败。
+    bool bossGate = false;
+    // 终焉关专属：Claude 与 BOSS 一起守在关卡最后，持续甩出封禁图片。
+    bool banStorm = false;
     std::vector<SkyPlatform> skyPlatforms;
     std::vector<Spring> springs;
     std::vector<FallingSpike> fallingSpikes;
