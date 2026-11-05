@@ -1,3 +1,5 @@
+// 模块说明：星羽支线与手感扩展。移动平台、弹簧、落刺、星羽以及土狼时间/跳跃缓冲都在这。
+// 落刺状态机：Idle（等待玩家靠近）→ Warning（0.45 秒预警）→ Falling（重力下落）→ Resting（1.1 秒）→ 复位。
 // 冒险机关与手感适配：沿用本项目的 120 Hz 物理、WASD、死亡结算和五关主题。
 #include "AdventureMechanics.h"
 #include <algorithm>

@@ -1,0 +1,240 @@
+GAME / 桌面横版闯关 代码结构说明
+================================
+最后更新：2026-11-05
+适用版本：Release v2026.11.04.18 及之后
+
+本文档说明每个源码文件的位置、职责、关键函数以及常见修改的入口，
+配合源文件开头的“模块说明”注释一起阅读即可快速定位代码。
+
+目录
+----
+一、整体结构
+二、程序启动与主循环
+三、规则层（World）
+四、关卡设计（十五关与无尽模式）
+五、战斗与机关
+六、绘制与素材
+七、存档、账户与设置
+八、星级、积分与结算
+九、测试工程
+十、构建、发布与工具脚本
+十一、常见修改指引
+
+
+一、整体结构
+------------
+工程是 C++17 + EasyX 的 Windows 桌面游戏，使用 MSBuild（game.sln）构建，
+入口在 src/main.cpp。代码分为四层：
+
+1. 表现层：main.cpp、Game.cpp、SceneRenderer.cpp、CharacterRenderer.cpp、
+   Menu.cpp、Sound.h、Feedback.h —— 负责窗口、输入、菜单、画面与音效。
+2. 规则层：World.cpp/.h —— 物理、碰撞、机关更新、死亡与重生、积分结算。
+3. 设计层：LevelDesign.cpp、AdventureMechanics.cpp、Combat.cpp、
+   SpecialTraps.cpp、SpikeActivity.cpp —— 关卡布置与各类机关的具体行为。
+4. 数据层：PlayerSystem.cpp/Account.h、StarSystem.cpp、system.cpp ——
+   存档、星级与积分规则。
+
+依赖方向：表现层 → 规则层 → 设计层；规则层不直接依赖 EasyX，
+因此 tests/ 下的测试可以在没有窗口的情况下跑完整物理与机关逻辑。
+
+
+二、程序启动与主循环
+--------------------
+src/main.cpp
+  - 解析命令行：正常启动、--self-test（无窗口跑全部回归）、
+    以及 --smoke-test / --levels-smoke-test / --bridge-smoke-test /
+    --enemies-smoke-test / --boss-smoke-test / --final-smoke-test /
+    --weapons-smoke-test 等自动截图模式。
+  - 截图模式对应 Game.h 里的 Preview 枚举，加载指定关卡跑 3 帧后存 PNG。
+
+src/Game.cpp
+  - 打开窗口、建立 EasyX 画布，处理菜单页面切换。
+  - 固定步长（120 Hz）循环：收集输入 → world.update(...) → 绘制。
+  - 处理通关、死亡、暂停、重生、通关存档（account.complete）、金币入账。
+  - 渲染函数按 HUD → 场景 → 机关 → 角色 → 结算页的顺序绘制。
+
+src/Game.h
+  - Preview 枚举、窗口尺寸、显示缩放与游戏状态声明。
+
+
+三、规则层（World）
+-------------------
+src/World.h
+  - 坐标与物理常量：Speed（横移 250）、Gravity（1550）、跳跃初速 -540、
+    MaxHealth（1 滴血）、GptStunSeconds（2 秒）。
+  - 数据结构：Rect、Platform、Spike、Laser、Saw、Cannon、Fist、Enemy、
+    FallingSpike、Projectile、Level、Player、World。
+  - Level 里保存一关的全部内容：平台、尖刺、激光、锯轮、炮台、敌人、
+    BOSS 站位（bossBody / bossGate / banStorm）、两面存档旗帜（checkpoints）、
+    终点、主题编号、金币与分值等。
+  - World 提供 update（物理与机关）、render 用状态、respawn、resetPlayer、
+    load、restart、extendEndless 等接口。
+
+src/World.cpp
+  - Level::tutorial()：第一关基础路线（10 块平台、4 组尖刺、倒挂夹击）。
+  - World::update()：按固定顺序推进——水平移动 → 跳跃与重力 → 平台碰撞 →
+    镜头 → 尖刺 → 机关 → 子弹 → 终点判定 → 计时与积分。
+  - resetPlayer()：重生时复位角色、弹幕、机关计时，但保留本局积分。
+  - 终点判定：第 5、10 关 BOSS 可不打；第 15 关必须击杀 BOSS 才开门。
+  - hurt()/die()/updateBlood()/resetBlood()：血量与死亡结算（原 blood.cpp 已并入）。
+
+
+四、关卡设计（十五关与无尽模式）
+--------------------------------
+src/LevelDesign.cpp
+  - Level::campaign(index)：按关卡号生成整关。
+    1) tutorial() 基础路线
+    2) 前五关的机制套件（断桥、巡逻敌人、定时激光、BOSS 热身）
+    3) buildAdventureRoute()：星羽支线（高路平台、弹簧、落刺、星羽）
+    4) buildCampaignExpansion()：按 StageLayout 表铺设扩展段（每关不同间距/宽度/高度）
+    5) 终点、BOSS 站位与 BOSS 门（bossGate）
+    6) 两面存档旗帜（按距离均匀分布，避开会坍塌的平台）
+    7) addCampaignHazards()：按关卡表摆放这关独有的机关组合
+    8) 敌人形象投放（第 1–2 关只有 Grok，第 3 关起 GPT，第 7 关起 Claude）
+    9) 终焉关（第 15 关）在终点门旁放静止 Claude，持续甩封禁图片
+   10) 统一给所有平台补金币
+
+  - 关键表：
+      Layouts[15]：每关的平台间距(gaps)、宽度(widths)、六段高度循环(heights)。
+      修改某关地形，改对应的 Layouts 行即可；heights 是绝对 Y 坐标，
+      相邻两段高差不超过 80 像素才能保证二段跳可达。
+      themes[15]：每关主题配色（0–4 循环，无尽模式用 5）。
+      names[15]：十五关关名。
+
+  - extendEndless()：无尽模式按深度不断向右生成平台、尖刺、七类机关，
+    第 30 段之后可能出现 Claude；越深机关越密，主题每八段切换。
+
+src/main.cpp / src/Game.cpp 里的 Preview：
+  --bridge-smoke-test（第 2 关）、--enemies-smoke-test（第 3 关）、
+  --boss-smoke-test（第 15 关 BOSS）、--final-smoke-test（终焉关）等，
+  用于给某类关卡截图核对。
+
+
+五、战斗与机关
+--------------
+src/Combat.cpp
+  - updateCombat()：坍塌平台、锯轮、激光、巡逻敌人、BOSS 弹幕、炮台、隐藏拳头。
+  - 敌人分三种形象：avatar 0=Claude（远程封禁图片，命中即死）、
+    1=GPT（每秒一发字符串弹幕，只眩晕 2 秒）、2=Grok（近战接触与斧击）。
+  - 玩家射击：J 键每 0.22 秒一发，朝向跟随最后一次水平移动。
+  - BOSS：12 点血，满血每 2 秒、残血每 1.3 秒放一轮三连弹。
+
+src/AdventureMechanics.cpp
+  - 星羽支线的机关：移动平台、弹簧、落刺、星羽收集与手感容错。
+  - 落刺的预警→下落→砸地→复位状态机在这里维护。
+
+src/SpecialTraps.cpp
+  - 倒挂尖刺与上下夹击陷阱，尺寸由同一函数提供给碰撞和绘制。
+
+src/SpikeActivity.cpp
+  - 地面尖刺的分组与伸缩：相邻同高尖刺共享计时，整组同步伸缩。
+
+
+六、绘制与素材
+--------------
+src/SceneRenderer.cpp
+  - 六种主题背景（五个闯关主题 + 无尽星空）、平台、尖刺、激光、锯轮、
+    炮台、敌人、BOSS、旗帜与文字弹幕的绘制。
+  - 敌人形象在 image 资源里按 avatar 取帧。
+
+src/CharacterRenderer.cpp + CharacterSprites.h
+  - 主角（鲸鱼娘）与米饭的像素图集渲染。
+
+src/AiSprites.h
+  - Claude / GPT / Grok 的 AI 娘像素图集（每帧 64×64）。
+
+src/Menu.cpp
+  - 主页面、模式选择、选关卡片（星级、锁图标）、设置、商店的绘制与交互。
+
+src/DisplayLayout.h
+  - 3:2 逻辑画布在不同窗口比例下的居中换算，黑边不响应点击。
+
+src/Feedback.h / Sound.h
+  - 程序内合成音效与异步播放，不依赖外部音频文件。
+
+src/Weapons.rc
+  - 内嵌封禁图片等 Windows 资源。
+
+
+七、存档、账户与设置
+--------------------
+src/Account.h
+  - 账户数据：昵称、金币、已购配色、解锁关卡数、每关最高星/最高分、
+    当前存档文件路径、是否使用备用存档目录、上次保存是否失败。
+
+src/PlayerSystem.cpp
+  - 昵称 → UTF-16 十六进制文件名，一昵称一存档。
+  - 存档目录按候选顺序探测可写：%LOCALAPPDATA%\IWannaGame\players →
+    程序目录 saves\players → 当前目录 saves\players → 临时目录。
+  - 多个目录都有该昵称档案时，读取最后写入的一份并迁移到可写目录。
+  - 存档版本 3（兼容版本 2），内容为：
+    版本 金币 已购 解锁数 + 15 组“最高星 最高分”。
+  - 写盘用临时文件 + MoveFileExW 原子替换；失败会置 lastSaveFailed。
+
+src/Game.h 里的 GameSettings：操作提示、角色配色、帧率上限、显示模式。
+
+
+八、星级、积分与结算
+--------------------
+src/StarSystem.cpp/.h
+  - starRules()：每关的时间目标与金币目标。
+  - evaluateStars()：一星看时间/战斗，二星看白饭收集，三星看金币目标。
+  - drawVictoryScreen()：通关结算页（星级动画、得分、目标、按钮）。
+  - drawLevelStars()：选关卡片上的三颗小星（显示历史最高星）。
+
+src/system.cpp/.h
+  - scoring：距离、击杀、金币、BOSS 的一次性奖励，死亡时冻结得分。
+  - drawDeathScreen()：死亡结算页与重生按钮。
+
+src/PlayerSystem.cpp 的 Account::complete()：记录通关、解锁下一关，
+  再用 std::max 更新该关最高星与最高分（选关卡片因此只显示最好成绩）。
+
+
+九、测试工程
+------------
+tests/WorldTests.cpp      物理、通关、计分、死亡、镜头、尖刺同步、设置项
+tests/ExtendedTests.cpp   十五关配置与真实路线、机关、BOSS 门、无尽模式、选关
+tests/EconomyTests.cpp    金币、体力/重生费用、伪随机稳定性、存档回退与迁移
+tests/StarTests.cpp       星级条件与通关冻结
+tests/AdventureTests.cpp  星羽支线、跳跃容错、弹簧与落刺
+
+运行方式：bin\x64\Release\game.exe --self-test
+任何一条断言失败都会打印 FAIL 信息并返回非 0 退出码。
+
+
+十、构建、发布与工具脚本
+------------------------
+game.sln / game.vcxproj       MSBuild 工程（Release x64，/utf-8）
+build-release.ps1             本地一键构建、自测、打包 dist 的说明脚本
+README.md                     玩家向说明与更新记录
+AGENTS.md                     协作约定（中文注释、提交与推送流程）
+
+build\ 目录（不提交到仓库）存放发布辅助脚本：
+  make-manifest.ps1   把本地提交导出成 GitHub API 需要的 blob/tree/commit 清单
+  push-api.js         用 GitHub API 重放提交（当前环境 git push 通道不可用）
+  api_ascii.ps1       从 Windows 凭据读取令牌并调用上面的 node 脚本
+  release-create.js   创建 Release
+  upload-retry.js     带重试上传 Release 附件
+  verify-final.js     核验远程 main/tree/Release/附件大小与摘要
+
+说明：本项目所在机器访问 github.com:443 会被拦截、git 走 schannel 失败，
+因此提交后用“API 重放”方式推送；等网络正常时也可以直接用 git push。
+
+
+十一、常见修改指引
+------------------
+1. 改某关地形高低/间距：src/LevelDesign.cpp 的 Layouts[关号-1]。
+2. 改某关机关组合：src/LevelDesign.cpp 的 addCampaignHazards() 里对应 case。
+3. 改关卡名称/主题：src/LevelDesign.cpp 的 names[] 与 themes[]。
+4. 改 BOSS 站位或是否必须击杀：src/LevelDesign.cpp 里 bossBody / bossGate 的赋值。
+5. 改敌人出现规则：src/LevelDesign.cpp 的随机投放与 endlessAvatar()。
+6. 改敌人数值（弹速、间隔、眩晕）：src/Combat.cpp 的 updateCombat()。
+7. 改玩家血量/跳跃/速度：src/World.h 的常量与src/AdventureMechanics.cpp 的跳跃初速。
+8. 改存档位置或版本：src/PlayerSystem.cpp 的 candidateDirectories() 与 save()。
+9. 改选关卡片显示：src/Menu.cpp 的选关页绘制与 StarSystem 的 drawLevelStars()。
+10. 改 HUD 文案/布局：src/Game.cpp 的 render()。
+
+修改完成后：
+  msbuild game.sln /m /p:Configuration=Release /p:Platform=x64
+  bin\x64\Release\game.exe --self-test
+然后按 AGENTS.md 提交并推送。

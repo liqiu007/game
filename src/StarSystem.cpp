@@ -1,3 +1,5 @@
+// 模块说明：星级与通关结算。星级只看“是否通关 + 三个独立条件”，不因重生或重玩回退。
+// drawLevelStars() 供选关卡片复用；drawVictoryScreen() 负责结算页与“下一关”按钮。
 // 独立星级模块：前三关检查时间，后两关检查战斗；白饭与金币各占一星。
 #include "StarSystem.h"
 #include "World.h"

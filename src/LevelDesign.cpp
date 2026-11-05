@@ -1,3 +1,9 @@
+// 模块说明：关卡设计层。十五关共用一套操作，差异全部由本文件的三张表 + 两个函数决定：
+//   Layouts[15] —— 扩展段地形（间距/宽度/六段高度，相邻高差 ≤80 保证二段跳可达）
+//   addCampaignHazards() —— 每关独有的机关组合（按 case 0..14）
+//   敌人投放 + 旗帜 + BOSS 站位 —— campaign() 尾部按编号顺序执行
+// campaign() 的生成顺序很重要：先铺平台，再摆旗帜，最后放地面机关，这样旗帜不会被摆在危险物里。
+// 修改某关地形或机关时，先找 Layouts 行，再找 addCampaignHazards 的对应 case。
 // 十五关配置与无尽地图生成：关卡共享基础操作，主题、机关和通关目标各不相同。
 #include "World.h"
 #include "AdventureMechanics.h"
@@ -23,6 +29,162 @@ int endlessAvatar(std::size_t index) {
     if (index < 30) return 1 + avatar() % 2;
     return avatar();
 }
+// 通关后段的扩展段地形模板：三组间距、三组宽度和六段高度循环组合，
+// 让十五关不仅在机关上不同，平台的高低起伏与落脚宽窄也各有节奏。
+// heights 使用绝对世界坐标（Y 向下），相邻两段高差不超过 80 像素，
+// 保证单跳或二段跳都能上去，不会生成跳不过去的路线。
+struct StageLayout {
+    float gaps[3];     // 平台之间的距离循环（像素）
+    float widths[3];   // 平台宽度循环（像素）
+    int heights[6];    // 平台顶面的高度循环（世界坐标 Y）
+};
+
+// 十五张地形卡：整体从平缓起伏逐渐过渡到长桥、深谷、连续爬升与起伏台阶。
+const StageLayout Layouts[15] = {
+    {{70, 60, 70}, {190, 175, 205}, {360, 420, 460, 420, 360, 320}},   // 1 小试牛刀：缓波
+    {{85, 70, 85}, {150, 165, 140}, {380, 340, 300, 340, 380, 420}},   // 2 断桥危机：拱桥
+    {{60, 80, 60}, {200, 180, 220}, {360, 420, 460, 500, 460, 420}},   // 3 敌人来袭：深谷
+    {{75, 65, 75}, {170, 195, 160}, {400, 360, 320, 360, 400, 440}},   // 4 小心激光：错峰
+    {{70, 85, 70}, {190, 210, 180}, {380, 340, 380, 420, 460, 420}},   // 5 终章：竞技场前
+    {{80, 80, 80}, {230, 210, 250}, {360, 400, 440, 400, 360, 320}},   // 6 水平弹幕：长桥
+    {{70, 90, 70}, {180, 160, 200}, {380, 300, 340, 380, 420, 460}},   // 7 隐藏拳头：拳台
+    {{65, 75, 65}, {150, 130, 170}, {400, 440, 400, 360, 320, 360}},   // 8 伏击林径：树冠
+    {{80, 70, 80}, {140, 160, 140}, {340, 380, 340, 300, 340, 380}},   // 9 霓虹回廊：灯廊
+    {{75, 75, 90}, {200, 180, 220}, {440, 400, 360, 320, 360, 400}},   // 10 熔心终局：下沉爬升
+    {{60, 70, 60}, {160, 180, 160}, {420, 380, 340, 300, 360, 420}},   // 11 苍崖逐风：连续登高
+    {{90, 75, 90}, {150, 140, 170}, {420, 380, 340, 320, 300, 340}},   // 12 残桥悬梯：阶梯下坠
+    {{70, 80, 70}, {210, 190, 220}, {380, 420, 460, 420, 380, 340}},   // 13 暗林猎场：缓坡
+    {{65, 70, 65}, {140, 150, 130}, {360, 400, 440, 480, 440, 400}},   // 14 光栅深井：井底
+    {{75, 65, 75}, {200, 220, 190}, {400, 360, 320, 360, 400, 440}},   // 15 终焉：王座台阶
+};
+
+// 扩展段只负责铺路：先只生成平台，机关稍后再按关卡单独摆放。
+// 这样存档旗帜可以先挑选落脚平台，地面类机关再避开这些平台，重生点不会落在危险物上。
+void buildCampaignExpansion(Level& level, int stage) {
+    const StageLayout& layout = Layouts[stage];
+    // 扩展段长度随章节增加：前三档 6 段、中三档 8 段、最后三档 10 段；
+    // 金币仍由 campaign() 末尾统一按平台补齐，避免这里重复发放。
+    const int count = 6 + stage / 5 * 2;
+    for (int i = 0; i < count; ++i) {
+        const std::size_t slot = level.platforms.size();
+        const float spacing = layout.gaps[slot % 3];
+        const float x = level.platforms.back().right() + spacing;
+        // 地形从基础路线的最后一块平台（第 10 块）开始循环六段高度。
+        const float y = static_cast<float>(layout.heights[(slot - 10) % 6]);
+        const float width = layout.widths[slot % 3];
+        level.platforms.push_back({x, y, width, 24});
+        level.platformScores.push_back(250);
+        // 断桥危机与残桥悬梯两关会掺入踩踏后坍塌的平台；它们在挑选旗帜之前加入，
+        // 让第二面旗帜自动避开这些会消失的落脚点。
+        if ((stage == 1 && i % 3 == 2) || (stage == 11 && i % 3 == 0)) level.fragile.push_back({level.platforms.size() - 1});
+    }
+}
+
+// 判断扩展段某块平台是否被存档旗帜占用：有旗帜的平台不摆贴地机关，
+// 否则玩家重生时可能直接站在激光或尖刺里。倒挂尖刺与下落尖刺仍在安全高度，不受限制。
+bool holdsCampaignFlag(const Level& level, const Rect& platform) {
+    for (const auto& flag : level.checkpoints)
+        if (flag.right() > platform.x && flag.x < platform.right()) return true;
+    return false;
+}
+
+// 按关卡给扩展段摆放机关：每关挑选不同的机关组合与出现节奏，
+// 既保留“每关都有自己的机关语言”，又让相邻关卡的通过方式明显不同。
+void addCampaignHazards(Level& level, int stage) {
+    // 扩展段从第 10 块平台开始；i 用于让机关按“段序”错开摆放，不依赖绝对下标。
+    const std::size_t first = 10;
+    for (std::size_t index = first; index < level.platforms.size(); ++index) {
+        const Rect platform = level.platforms[index];
+        // 终点平台以及终点前最后一小段保持干净：不摆贴地机关与远程机关。
+        // 这样结算区有安全落脚点，终焉关的 BOSS 与守门 Claude 也不会和残留炮台互相干扰。
+        if (index + 1 >= level.platforms.size() || platform.right() > level.goal.x - 420.0f) continue;
+        const std::size_t i = index - first;
+        const float x = platform.x, y = platform.y, w = platform.w;
+        const bool reserved = holdsCampaignFlag(level, platform);
+        switch (stage) {
+        case 0:
+            // 小试牛刀：只在部分路段立一排倒挂尖刺，留出完整地面通过。
+            if (i % 3 == 2) level.overheadTraps.push_back({{x + w * 0.5f - 12, y - 170, 24, 42}, TrapStyle::Ceiling});
+            break;
+        case 1:
+            // 断桥危机：悬空往返锯轮配合已经加入的坍塌桥面，逼迫玩家跳得干脆。
+            if (!reserved && i % 3 == 1) level.saws.push_back({{x + w * 0.5f, y - 80, 22, 22}, x + w * 0.5f, 26, 1.5f});
+            break;
+        case 2:
+            // 敌人来袭：巡逻者与激光交替出现，考验“先清场再跳”的节奏。
+            if (i % 2 == 1) level.enemies.push_back({{x + w * 0.5f, y - 28, 26, 28}, x + 20, x + w - 40});
+            if (i % 3 == 1) level.lasers.push_back({{x + w - 40, y - 115, 10, 115}, 3.8f, 1.1f, 1.2f});
+            break;
+        case 3:
+            // 小心激光：每两段一道光柱，熄灭窗口更短，落脚点更窄。
+            if (i % 2 == 0) level.lasers.push_back({{x + w * 0.5f, y - 120, 10, 120}, 3.4f, 1.0f, 0.6f});
+            if (i % 3 == 2) level.enemies.push_back({{x + w - 60, y - 28, 26, 28}, x + 30, x + w - 40});
+            break;
+        case 4:
+            // 终章（第 5 关）：竞技场之前摆一组激光、锯轮和巡逻者，当作 BOSS 前的热身。
+            if (i % 3 == 0) level.lasers.push_back({{x + 30, y - 120, 10, 120}, 4.0f, 1.0f, 1.8f});
+            if (i % 3 == 1) level.saws.push_back({{x + w - 50, y - 90, 22, 22}, x + w - 50, 28, 1.3f});
+            if (i % 3 == 2) level.enemies.push_back({{x + w * 0.5f, y - 28, 26, 28}, x + 20, x + w - 40});
+            break;
+        case 5:
+            // 水平弹幕：长桥上每隔一段架一门水平炮台，需要卡着炮击间隔冲刺。
+            if (i % 2 == 0) level.cannons.push_back({{x + w - 40, y - 24, 24, 24}, -1, 2.6f});
+            if (i % 3 == 1) level.enemies.push_back({{x + 40, y - 28, 26, 28}, x + 20, x + w - 40});
+            if (i % 3 == 2) level.lasers.push_back({{x + w - 70, y - 110, 10, 110}, 4.2f, 0.9f, 2.2f});
+            break;
+        case 6:
+            // 隐藏拳头：每段平台的入口埋着弹簧拳，踩中会被弹到高处，节奏由“踩”变成“飞”。
+            if (i % 2 == 0) level.fists.push_back({{x + 60, y - 4, 32, 4}});
+            if (i % 2 == 1) level.enemies.push_back({{x + w * 0.5f, y - 28, 26, 28}, x + 30, x + w - 40});
+            break;
+        case 7:
+            // 伏击林径：树冠上的倒挂尖刺搭配定时落刺，需要观察预警再冲过去。
+            if (i % 2 == 0) level.overheadTraps.push_back({{x + w * 0.5f - 12, y - 175, 24, 44}, TrapStyle::Ceiling});
+            if (i % 3 == 1) level.fallingSpikes.push_back({{x + 60, y - 180, 22, 28}, y - 180});
+            if (i % 3 == 2) level.enemies.push_back({{x + w - 70, y - 28, 26, 28}, x + 40, x + w - 40});
+            break;
+        case 8:
+            // 霓虹回廊：又窄又密的灯廊，光柱与锯轮交替，站位必须精确。
+            if (i % 2 == 0) level.lasers.push_back({{x + w * 0.5f, y - 105, 10, 105}, 3.6f, 0.8f, 1.4f});
+            if (i % 2 == 1) level.saws.push_back({{x + w * 0.5f, y - 70, 20, 20}, x + w * 0.5f, 24, 1.7f});
+            break;
+        case 9:
+            // 熔心终局：下沉平台配上锯轮与炮台，需要边后退边等机关冷却。
+            if (i % 2 == 0) level.saws.push_back({{x + w - 60, y - 85, 22, 22}, x + w - 60, 30, 1.4f});
+            if (i % 3 == 1) level.cannons.push_back({{x + w - 40, y - 24, 24, 24}, -1, 3.0f});
+            if (i % 3 == 2) level.enemies.push_back({{x + w * 0.5f, y - 28, 26, 28}, x + 20, x + w - 40});
+            break;
+        case 10:
+            // 苍崖逐风：连续登高的崖壁上落刺不断，考验向上跳的时机。
+            if (i % 3 == 1) level.fallingSpikes.push_back({{x + 50, y - 185, 22, 28}, y - 185});
+            if (i % 3 == 2) level.overheadTraps.push_back({{x + w - 60, y - 175, 24, 44}, TrapStyle::Ceiling});
+            break;
+        case 11:
+            // 残桥悬梯：一路下坠的残梯中夹着落刺与巡逻者，踩上脆板要立刻起跳。
+            if (i % 3 == 1) level.fallingSpikes.push_back({{x + 60, y - 175, 22, 28}, y - 175});
+            if (i % 3 == 2) level.enemies.push_back({{x + w * 0.5f, y - 28, 26, 28}, x + 30, x + w - 40});
+            break;
+        case 12:
+            // 暗林猎场：巡逻者、树冠倒刺与落刺混合的狩猎场。
+            if (i % 2 == 1) level.enemies.push_back({{x + w * 0.5f, y - 28, 26, 28}, x + 20, x + w - 40});
+            if (i % 3 == 0) level.overheadTraps.push_back({{x + w - 70, y - 170, 24, 42}, TrapStyle::Ceiling});
+            if (i % 3 == 2) level.fallingSpikes.push_back({{x + 40, y - 180, 22, 28}, y - 180});
+            break;
+        case 13:
+            // 光栅深井：井底的密集光栅，只有在熄灭的瞬间才能穿过。
+            if (i % 2 == 0) level.lasers.push_back({{x + w * 0.5f - 20, y - 125, 10, 125}, 3.0f, 0.9f, 0.5f});
+            if (i % 3 == 1) level.lasers.push_back({{x + w - 50, y - 125, 10, 125}, 3.6f, 0.8f, 1.8f});
+            break;
+        default:
+            // 终焉：王座台阶把前面用过的机关各取一点，作为最后的综合考验。
+            if (i % 3 == 0) level.cannons.push_back({{x + w - 40, y - 24, 24, 24}, -1, 2.8f});
+            if (i % 3 == 1) level.lasers.push_back({{x + 40, y - 120, 10, 120}, 3.8f, 1.0f, 1.0f});
+            if (i % 3 == 2) level.fallingSpikes.push_back({{x + w - 60, y - 180, 22, 28}, y - 180});
+            if (i % 2 == 1) level.enemies.push_back({{x + w * 0.5f, y - 28, 26, 28}, x + 30, x + w - 40});
+            break;
+        }
+    }
+}
 }
 Level Level::campaign(int index) {
     // 第一步：复用基础跳跃间距，按关卡加入不同机制，避免随机生成不可达路线。
@@ -33,7 +195,10 @@ Level Level::campaign(int index) {
     const wchar_t* names[]{L"小试牛刀", L"断桥危机", L"敌人来袭", L"小心激光", L"终章：BOSS战",
         L"水平弹幕", L"隐藏拳头", L"伏击林径", L"霓虹回廊", L"熔心终局",
         L"苍崖逐风", L"残桥悬梯", L"暗林猎场", L"光栅深井", L"终焉：封禁王座"};
-    result.theme = std::clamp(stage % 5, 0, 4);
+    // 十五关的背景主题各有安排：前五关固定使用 0–4（起始高路的机关按主题配置），
+    // 后十关把五种主题重新打乱，避免同一片天色在相邻关卡里连续出现。
+    const int themes[15]{0, 1, 2, 3, 4, 3, 0, 4, 1, 2, 2, 4, 0, 3, 1};
+    result.theme = themes[stage];
     result.name = L"第" + std::to_wstring(stage + 1) + L"关 · " + names[stage];
     // 第二步：断桥关收窄桥面并加入踩踏后坍塌的平台与往返锯轮。
     if (index == 1) {
@@ -61,18 +226,8 @@ Level Level::campaign(int index) {
     }
     // 高路提供星羽探索奖励，各关使用不同移动方向、定时平台或预警落刺。
     buildAdventureRoute(result);
-    // 扩大地图，保持安全跳跃间距，后续章节增加路线长度。
-    for (int i = 0; i < 6 + stage / 5 * 3; ++i) {
-        float x = result.platforms.back().right() + 60, y = 360 + (i % 3) * 40.0f;
-        result.platforms.push_back({x, y, 190, 24}); result.platformScores.push_back(250);
-        // 扩展路段交替配置机关，入口保留落脚空间，出口平台留给结算。
-        if (i % 3 == 0) result.fragile.push_back({result.platforms.size() - 1});
-        else if (i % 3 == 1) result.lasers.push_back({{x + 130, y - 105, 10, 105}, 4.2f, 0.7f, 1.5f});
-        else result.overheadTraps.push_back({{x + 100, y - 190, 24, 42}, TrapStyle::Ceiling});
-        if (stage == 5 && i % 3 == 1) result.cannons.push_back({{x + 160, y - 24, 24, 24}, -1, 2.6f});
-        if (stage == 6 && i % 3 == 1) result.fists.push_back({{x + 80, y - 4, 32, 4}});
-        if (i % 2 == 0) result.enemies.push_back({{x + 80, y - 28, 26, 28}, x + 30, x + 155});
-    }
+    // 扩展段按本关地形卡铺路：每关的高度起伏、平台宽窄与间距都不一样，主路线不再是同一条走廊。
+    buildCampaignExpansion(result, stage);
     const auto end = result.platforms.back();
     result.goal = {end.x + 130, end.y - 52, 32, 52}; result.width = end.right();
     // BOSS 与终点同在最后一关平台上，站在终点门右侧：第 5、10 关可以从容绕过，第 15 关必须击败它才开门。
@@ -107,6 +262,8 @@ Level Level::campaign(int index) {
         const float x = std::clamp(wanted, surface->x + 10.0f, surface->right() - 34.0f);
         result.checkpoints.push_back({x, surface->y - 44.0f, 24, 44});
     }
+    // 存档点确定后再摆放扩展段机关：机关会跳过有旗帜的平台，玩家重生时不会直接落在危险物里。
+    addCampaignHazards(result, stage);
     // 敌人形象按关卡投放：第一、二关只有近战的 Grok，第三关起 GPT 登场，第七关起 Claude 也可能出现。
     for (auto& enemy : result.enemies) {
         if (stage < 2) enemy.avatar = 2;

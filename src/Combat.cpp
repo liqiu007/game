@@ -1,3 +1,8 @@
+// 模块说明：战斗与复合机关。updateCombat() 在一帧内依次处理：
+//   坍塌平台 → 锯轮/激光伤害 → 巡逻敌人（Grok 近战、GPT 字符串弹幕、Claude 封禁图片）
+//   → 玩家射击 → BOSS 弹幕 → 炮台 → 隐藏拳头 → 推进子弹并结算命中。
+// 敌人形象用 avatar 区分：0=Claude、1=GPT、2=Grok。新增敌人行为时在这里加分支，
+// 并在 SceneRenderer.cpp 的绘制里补对应外观。
 // 战斗与复合陷阱：坍塌平台、锯轮、巡逻敌人、激光和 BOSS 弹幕。
 #include "Combat.h"
 #include <algorithm>
