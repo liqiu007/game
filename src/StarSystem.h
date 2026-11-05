@@ -14,5 +14,7 @@ StarRules starRules(int chapter);
 StarResult evaluateStars(const World& world);
 void drawVictoryScreen(const World& world, float age = 3);
 VictoryAction victoryScreenClick(int x, int y);
+// 选关卡片上的三颗小星：earned 为历史最高星数，其余画成空轮廓。
+void drawLevelStars(int x, int y, int earned);
 void runStarTests();
 }

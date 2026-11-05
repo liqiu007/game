@@ -75,14 +75,14 @@ Level Level::campaign(int index) {
     if (stage == 6) result.name = L"第7关 · 隐藏拳头";
     const auto end = result.platforms.back();
     result.goal = {end.x + 130, end.y - 52, 32, 52}; result.width = end.right();
-    // 存档点按水平距离均匀分成四段：出生区一面，之后等距三面，重生不用长距离重跑。
-    // BOSS 关把可用区间收在竞技场之前，避免在 BOSS 面前留下重生点。
+    // 每关最多两面旗帜：第一面在出生区，第二面接近终点前；BOSS 关第二面提前收在竞技场之前。
     result.checkpoints.clear();
     const float flagStart = 555.0f;
     const float flagEnd = result.goal.x - (result.boss ? 900.0f : 600.0f);
     const float flagSpan = std::max(0.0f, flagEnd - flagStart);
-    for (int slot = 0; slot < 4; ++slot) {
-        const float wanted = flagStart + flagSpan * slot / 3.0f;
+    for (int slot = 0; slot < 2; ++slot) {
+        // 两面旗帜把可用区间二等分：0 号在起点，1 号在终点前。
+        const float wanted = flagStart + flagSpan * slot;
         // 旗帜要立在实地平台上：跳过会坍塌的平台，找离目标最近的稳定平台顶面。
         const Rect* surface = nullptr;
         float bestDistance = 1.0e9f;

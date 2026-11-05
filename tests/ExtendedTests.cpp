@@ -350,22 +350,13 @@ void runExtendedTests() {
         std::string failure;
         for (int attempt = 0; attempt < 3 && !routed; ++attempt) {
         try {
-        // 存档点按距离均匀分布，且不能在 BOSS 竞技场前留下重生点。
+        // 每关最多两面旗帜：出生区一面、终点前一面，且不能在 BOSS 竞技场前留下重生点。
         {
             World flags; flags.load(chapter);
-            require(flags.level.checkpoints.size() >= 4, "Each campaign level needs evenly spaced checkpoints");
-            float previous = 0.0f;
-            for (const auto& flag : flags.level.checkpoints) {
-                require(flag.x > previous, "Checkpoint flags must advance along the level");
-                previous = flag.x;
-            }
-            const float start = flags.level.checkpoints.front().x;
+            require(flags.level.checkpoints.size() == 2, "Each campaign level must use at most two checkpoints");
+            require(flags.level.checkpoints[1].x > flags.level.checkpoints[0].x, "Checkpoint flags must advance along the level");
             const float finish = flags.level.checkpoints.back().x;
-            const float average = (finish - start) / static_cast<float>(flags.level.checkpoints.size() - 1);
-            for (std::size_t i = 1; i < flags.level.checkpoints.size(); ++i) {
-                const float gap = flags.level.checkpoints[i].x - flags.level.checkpoints[i - 1].x;
-                require(gap > average * 0.55f && gap < average * 1.45f, "Checkpoint spacing must stay roughly even");
-            }
+            require(finish > flags.level.checkpoints.front().x + 400.0f, "Second checkpoint must sit far enough from the first");
             if (flags.level.boss)
                 require(finish < flags.level.goal.x - 600.0f, "Boss levels must not spawn next to the boss arena");
         }
@@ -429,6 +420,9 @@ void runExtendedTests() {
                     std::to_string(static_cast<int>(tile.y)) + "," + std::to_string(static_cast<int>(tile.w)) + "]";
             for (const auto& trap : route.level.overheadTraps)
                 geometry += "T" + std::to_string(static_cast<int>(trap.body.x)) + "," + std::to_string(static_cast<int>(trap.body.y));
+            // 死亡原因按 UTF-16 码点记录，避免窄字符转换截断中文提示。
+            std::string reason;
+            for (wchar_t code : route.deathReason) reason += std::to_string(static_cast<unsigned>(code)) + ",";
             throw std::runtime_error("Finish not reached: chapter=" + std::to_string(chapter + 1) +
                 ", x=" + std::to_string(route.player.body.x) + ", y=" + std::to_string(route.player.body.y) +
                 ", goal=" + std::to_string(static_cast<int>(route.level.goal.x)) + "," + std::to_string(static_cast<int>(route.level.goal.y)) + "," +
@@ -436,7 +430,7 @@ void runExtendedTests() {
                 ", boss=" + std::to_string(route.bossHealth) + ", geom=" + geometry +
                 ", dead=" + std::to_string(route.dead) + ", won=" + std::to_string(route.won) +
                 ", stun=" + std::to_string(route.player.stun) +
-                ", reason=" + std::string(route.deathReason.begin(), route.deathReason.end()));
+                ", reason=" + reason);
         }
         routed = true;
         } catch (const std::runtime_error& error) { failure = error.what(); }

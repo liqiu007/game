@@ -104,6 +104,13 @@ int Game::run(Preview preview, bool debugSix) {
             (preview == Preview::Levels ? Page::Levels : (preview == Preview::Modes ? Page::Modes :
             ((preview == Preview::Settings || preview == Preview::Window) ? Page::Settings : Page::Playing)));
     }
+    // 选关预览在内存档案里填入示例星数，用于核对卡片上的“历史最高星”徽标，不写入任何存档。
+    if (preview == Preview::Levels) {
+        account.ready = true;
+        account.nickname = L"预览";
+        account.unlocked = 9;
+        account.bestStars = {3, 2, 1, 3, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+    }
     // 第二步：构造验证场景，使用真实机关和计分流程，菜单预览不伪造继续游戏记录。
     if (preview == Preview::Death || preview == Preview::Spikes) {
         for (int i = 0; i < 45; ++i) world.update({false, true, false}, FixedStep);

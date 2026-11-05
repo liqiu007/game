@@ -2,6 +2,7 @@
 #include "Menu.h"
 #include "Account.h"
 #include "CharacterRenderer.h"
+#include "StarSystem.h"
 #pragma warning(push)
 #pragma warning(disable: 4201)
 #include <graphics.h>
@@ -158,7 +159,9 @@ void Menu::render() const {
             int x = 64 + i % 5 * 170, y = 210 + i / 5 * 108;
             fill(x,y,x+96,y+96,i == selected ? RGB(36,100,125) : RGB(24,36,53));
             text(x+12,y+18,itemText(i),24,enabled(i) ? RGB(239,245,255) : RGB(89,104,122));
-            text(x+12,y+60,enabled(i) ? L"挑战" : L"未解锁",15,RGB(153,178,202));
+            // 已解锁关卡在卡片中部显示历史最高星数，低于往次通关不会把星星抹掉。
+            if (enabled(i)) drawLevelStars(x + 22, y + 56, account.bestStars[i]);
+            text(x+12,y+74,enabled(i) ? L"挑战" : L"未解锁",15,RGB(153,178,202));
         }
         text(64,550,L"返回游戏模式",20,selected == 15 ? RGB(95,213,255) : RGB(153,178,202));
         text(300,560,L"W / S 选择 · Enter 确认 · Esc 返回",16,RGB(153,178,202));

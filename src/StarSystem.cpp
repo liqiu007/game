@@ -54,6 +54,11 @@ void star(int x, int y, bool filled, double scale = 1) {
     setlinestyle(PS_SOLID, 1);
 }
 }
+void drawLevelStars(int x, int y, int earned) {
+    // 选关卡片沿用结算页的星形：亮星为历史最高星数，空星提示还有目标未达成。
+    const int filled = std::clamp(earned, 0, 3);
+    for (int i = 0; i < 3; ++i) star(x + i * 20, y, i < filled, 0.16);
+}
 VictoryAction victoryScreenClick(int x, int y) {
     // 点击按钮外不执行操作，末关的“下一步”由主循环改为返回首页。
     for (int i = 0; i < 3; ++i) {
