@@ -75,6 +75,15 @@ Level Level::campaign(int index) {
     if (stage == 6) result.name = L"第7关 · 隐藏拳头";
     const auto end = result.platforms.back();
     result.goal = {end.x + 130, end.y - 52, 32, 52}; result.width = end.right();
+    // 每关在主路线前半段、中段与后段各放一面存档旗帜，减少长距离重跑。
+    result.checkpoints.clear();
+    result.checkpoints.push_back({555, 386, 24, 44});
+    for (std::size_t i : {std::size_t(6), std::size_t(8)}) {
+        const auto& anchor = result.platforms[i];
+        result.checkpoints.push_back({anchor.x + 15, anchor.y - 44, 24, 44});
+    }
+    // 第五关（以及同主题的第十、十五关）在 BOSS 与巡逻怪所在的后段再补一面旗帜。
+    if (index == 4) result.checkpoints.push_back({2075, 316, 24, 44});
     // 敌人形象按关卡投放：第一、二关只有近战的 Grok，第三关起 GPT 登场，第七关起 Claude 也可能出现。
     for (auto& enemy : result.enemies) {
         if (stage < 2) enemy.avatar = 2;
@@ -97,13 +106,13 @@ void World::load(int index, bool endlessMode) {
         level.platforms = {{0, 550, 275, 90}};
         level.platformScores = {0};
         level.spawnX = 60; level.spawnY = 522;
-        level.checkpoint = {-1000, 0, 1, 1}; level.goal = {-1000, 0, 1, 1};
+        level.checkpoints.clear(); level.goal = {-1000, 0, 1, 1};
         level.width = 275;
         // 无尽模式没有高路平台，允许落刺在角色正上方直接进入预警。
         level.fallingSpikeGroundTrigger = true;
         addRoadCoins(level, 0);
     }
-    checkpointActive = false; won = false; elapsed = 0; deaths = 0;
+    checkpointActive = false; checkpointIndex = 0; won = false; elapsed = 0; deaths = 0;
     stamina = InitialStamina;
     scoring.reset();
     scoring.distanceOnly = endless;

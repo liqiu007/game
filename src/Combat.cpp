@@ -53,14 +53,24 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
                 if (overlaps(w.player.body, {enemy.body.x - 48, enemy.body.y - 12, 122, 52})) w.hurt(L"你被 Grok 的斧头击中了", 2);
                 if (w.dead) return false;
             }
-        } else if (enemy.attackTimer >= (enemy.avatar == 0 ? 4.0f : 3.0f)) {
+        } else if (enemy.attackTimer >= (enemy.avatar == 0 ? 4.0f : 1.0f)) {
             enemy.attackTimer = 0;
             static std::mt19937 rng(std::random_device{}());
-            const auto kind = enemy.avatar == 0 ? ShotKind::Ban : (std::uniform_int_distribution<int>(0,1)(rng) ? ShotKind::Equation : ShotKind::Smoothness);
-            const float width = kind == ShotKind::Ban ? static_cast<float>(BanWidth) : (kind == ShotKind::Equation ? 150.0f : 270.0f);
-            const float height = kind == ShotKind::Ban ? static_cast<float>(BanHeight) : 40.0f;
+            // GPT 射出的是一段字符串文字，弹丸自带显示内容；Claude 仍然甩出封禁图片。
+            static const std::wstring gptStrings[]{L"NS方程", L"局部光滑性猜想"};
+            std::wstring text;
+            ShotKind kind = ShotKind::Ban;
+            float width = static_cast<float>(BanWidth);
+            float height = static_cast<float>(BanHeight);
+            if (enemy.avatar != 0) {
+                text = gptStrings[std::uniform_int_distribution<int>(0,1)(rng)];
+                kind = ShotKind::Text;
+                // 文字按 36 号字宽估算碰撞盒子，与绘制出来的字形宽度基本一致。
+                width = static_cast<float>(text.size()) * 36.0f + 6.0f;
+                height = 40.0f;
+            }
             // Claude 出手时瞄准玩家所在方向；投掷后沿固定方向飞行，可跳跃躲开。
-            // GPT 只有远程弹幕：2026-11-04 起射速由每 4 秒一发提升到每 3 秒一发，弹速由每秒 130 像素提升到 260 像素。
+            // GPT 2026-11-05 起改为每秒发射一次字符串弹幕，弹速保持每秒 260 像素。
             float vx = (enemy.avatar == 0 ? 130.0f : 260.0f) * direction, vy = 0, life = 4;
             if (rangedBan) {
                 const float dy = w.player.body.y - enemy.body.y;
@@ -68,7 +78,7 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
                 vx = dx / length * 240; vy = dy / length * 240; life = 5;
                 enemy.axeFlash = 0.35f;
             }
-            w.projectiles.push_back({{direction > 0 ? enemy.body.right() : enemy.body.x - width, enemy.body.y - height + 28, width, height}, vx, vy, life, true, kind});
+            w.projectiles.push_back({{direction > 0 ? enemy.body.right() : enemy.body.x - width, enemy.body.y - height + 28, width, height}, vx, vy, life, true, kind, text});
         }
     }
     // 第四步：J 可连续射击，朝向跟随最后一次水平移动；射击有冷却时间。
@@ -123,7 +133,11 @@ bool updateCombat(World& w, const Input& input, const Player& before, float dt) 
         }
         if (shot.hostile && overlaps(shot.body, w.player.body)) { shot.life = 0;
             if (shot.kind == ShotKind::Ban) { w.banPending = true; w.die(L"你被 Claude 封禁了"); return false; }
-            if (shot.kind == ShotKind::Equation || shot.kind == ShotKind::Smoothness) w.player.stun = World::GptStunSeconds;
+            // 只有 GPT 的字符串弹幕会眩晕：命中不扣血，只封锁操作 2 秒；其余敌弹照常造成伤害。
+            // 已经被眩晕时不再延长，避免每秒一发的弹幕把角色永久锁死。
+            if (!shot.text.empty()) {
+                if (w.player.stun <= 0.0f) w.player.stun = World::GptStunSeconds;
+            }
             else w.hurt(L"你被敌方子弹击中了");
             if (w.dead) return false; }
         if (!shot.hostile) {

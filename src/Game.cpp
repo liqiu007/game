@@ -156,7 +156,10 @@ int Game::run(Preview preview, bool debugSix) {
     if (preview == Preview::Weapons) {
         // 素材验证场景不推进碰撞，也不读写正式存档。
         world.load(6); world.player.body = {60,522,24,28};
-        world.projectiles = {{{100,180,static_cast<float>(BanWidth),static_cast<float>(BanHeight)},0,0,4,true,ShotKind::Ban}, {{360,240,150,40},0,0,4,true,ShotKind::Equation}, {{560,300,270,40},0,0,4,true,ShotKind::Smoothness}};
+        world.projectiles = {
+            {{100,180,static_cast<float>(BanWidth),static_cast<float>(BanHeight)},0,0,4,true,ShotKind::Ban},
+            {{360,240,150,40},0,0,4,true,ShotKind::Text,L"NS方程"},
+            {{560,300,258,40},0,0,4,true,ShotKind::Text,L"局部光滑性猜想"}};
         world.level.enemies = {{{430,430,26,28},400,470,0,1,true,2,0,0.3f}};
     }
     if (debugSix) {
@@ -401,7 +404,7 @@ void Game::render() const {
     label(650, 22, L"死亡 " + std::to_wstring(world.deaths) + L"    时间 " +
         std::to_wstring(static_cast<int>(world.elapsed)) + L"s", 21, RGB(239, 245, 255));
     label(650, 60, world.endless ? L"距离 " + std::to_wstring(world.scoring.distanceMeters) + L" m" :
-        (world.checkpointActive ? L"存档点已激活" : L"前往绿色旗帜存档"), 18, RGB(92, 221, 167));
+        (world.checkpointActive ? L"存档点 " + std::to_wstring(world.checkpointIndex + 1) + L" / " + std::to_wstring(world.level.checkpoints.size()) : L"前往绿色旗帜存档"), 18, RGB(92, 221, 167));
     label(650, 83, L"积分 " + std::to_wstring(world.scoring.total()) + L"    障碍 " +
         std::to_wstring(world.scoring.cleared()), 18, RGB(255, 230, 90));
     // 绘制步骤四：主题材质、高路、移动轨迹和预警，让地图的可探索区域更清楚。
@@ -426,10 +429,13 @@ void Game::render() const {
         setfillcolor(trap.style == TrapStyle::Crusher ? RGB(255, 154, 90) : RGB(186, 136, 255));
         solidpolygon(points, 3);
     }
-    // 绘制步骤七：存档旗帜和终点随地图滚动，旗帜颜色反映是否已激活。
-    const auto flag = screenRect(world.level.checkpoint);
-    box({flag.x, flag.y, 3, flag.h}, RGB(177, 207, 215));
-    box({flag.x + 3, flag.y, 24, 17}, world.checkpointActive ? RGB(107, 255, 175) : RGB(55, 151, 115));
+    // 绘制步骤七：一面旗帜对应一处存档点，当前重生点用亮绿色、尚未到达的用暗绿色。
+    for (std::size_t i = 0; i < world.level.checkpoints.size(); ++i) {
+        const auto flag = screenRect(world.level.checkpoints[i]);
+        const bool active = world.checkpointActive && i == world.checkpointIndex;
+        box({flag.x, flag.y, 3, flag.h}, RGB(177, 207, 215));
+        box({flag.x + 3, flag.y, 24, 17}, active ? RGB(107, 255, 175) : RGB(55, 151, 115));
+    }
     const auto goal = screenRect(world.level.goal);
     box(goal, world.level.boss && world.bossHealth > 0 ? RGB(130, 80, 80) : RGB(234, 183, 80));
     box({goal.x + 5, goal.y + 5, 22, 47}, RGB(76, 61, 42));

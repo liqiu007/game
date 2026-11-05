@@ -13,7 +13,7 @@ World emptyWorld() {
     // 独立物理测试只移除无关危险；完整关卡路线测试使用实际关卡，不移除任何机关。
     World w; w.level = Level{}; w.level.platforms = {{0, 550, 275, 90}};
     w.level.spawnX = 60; w.level.spawnY = 522; w.level.goal = {-1000, 0, 1, 1};
-    w.level.checkpoint = {-1000, 0, 1, 1}; return w;
+    w.level.checkpoints = {{-1000, 0, 1, 1}}; return w;
 }
 bool reachSky(World& world, int index) {
     // 搜索等待和二段跳时机，以真实 WASD 输入抵达指定平台，不改变角色位置或生命。

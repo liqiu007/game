@@ -239,9 +239,10 @@ void drawCombatScene(const World& w) {
     }
     for (const auto& shot : w.projectiles) {
         if (shot.kind == ShotKind::Ban) putimage(static_cast<int>(shot.body.x - w.cameraX()), static_cast<int>(shot.body.y), &banImage);
-        else if (shot.kind == ShotKind::Equation || shot.kind == ShotKind::Smoothness) {
+        else if (shot.kind == ShotKind::Text) {
+            // 字符串弹幕按弹丸自带的文字绘制，内容与碰撞盒宽度一起由发射方决定。
             settextstyle(36, 0, L"Microsoft YaHei"); settextcolor(RGB(255,220,110));
-            outtextxy(static_cast<int>(shot.body.x - w.cameraX()), static_cast<int>(shot.body.y), shot.kind == ShotKind::Equation ? L"NS方程" : L"局部光滑性猜想");
+            outtextxy(static_cast<int>(shot.body.x - w.cameraX()), static_cast<int>(shot.body.y), shot.text.c_str());
         } else box(shot.body, shot.hostile ? RGB(255,98,99) : RGB(255,231,102));
     }
 }

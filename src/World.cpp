@@ -20,7 +20,7 @@ Level Level::tutorial() {
          {1390, 415, 180, 24}, {1620, 350, 180, 24}, {1850, 420, 160, 24}, {2055, 360, 185, 24}},
         {{180, 526, 24, 24}, {204, 526, 24, 24}, {625, 406, 24, 24}, {649, 406, 24, 24},
          {1245, 456, 24, 24}, {1269, 456, 24, 24}, {1705, 326, 24, 24}, {1729, 326, 24, 24}},
-        {555, 386, 24, 44}, {2170, 308, 32, 52}, 60, 522,
+        {{555, 386, 24, 44}}, {2170, 308, 32, 52}, 60, 522,
         {100, 100, 100, 100, 100, 100, 100, 100}, {0, 150, 200, 250, 200, 250, 300, 300, 300, 350}, 2240,
         // 普通倒挂尖刺放在跨越路线高处；夹击上排和下方第 4、5 号尖刺联动。
         {{{1040, 150, 24, 48}, TrapStyle::Ceiling}, {{1064, 150, 24, 48}, TrapStyle::Ceiling},
@@ -59,8 +59,14 @@ void World::resetPlayer() {
     deathReason.clear();
     // 第二步：重置速度和跳跃次数，在出生点或已激活的存档点放置角色。
     player = Player{};
-    player.body.x = checkpointActive ? level.checkpoint.x : level.spawnX;
-    player.body.y = checkpointActive ? level.checkpoint.bottom() - player.body.h : level.spawnY;
+    if (checkpointActive && checkpointIndex < level.checkpoints.size()) {
+        const Rect& start = level.checkpoints[checkpointIndex];
+        player.body.x = start.x;
+        player.body.y = start.bottom() - player.body.h;
+    } else {
+        player.body.x = level.spawnX;
+        player.body.y = level.spawnY;
+    }
     // 第三步：检查脚下是否有平台，避免重生被错误识别成一次新落地得分。
     for (const auto& platform : level.platforms) {
         if (player.body.bottom() == platform.y && player.body.right() > platform.x && player.body.x < platform.right())
@@ -164,8 +170,25 @@ void World::update(const Input& requestedInput, float dt) {
         auto& coin = level.coins[i];
         if (!coin.collected && overlaps(player.body, coin.body)) { coin.collected = true; scoring.collectCoin(i); }
     }
-    if (overlaps(player.body, level.checkpoint)) checkpointActive = true;
+    for (std::size_t i = 0; i < level.checkpoints.size(); ++i) {
+        if (!overlaps(player.body, level.checkpoints[i])) continue;
+        // 只向更靠后的旗帜推进，回头触碰旧旗帜不会覆盖已经取得的进度。
+        if (!checkpointActive || level.checkpoints[i].x > level.checkpoints[checkpointIndex].x) {
+            checkpointIndex = i;
+            checkpointActive = true;
+        }
+    }
     if (!endless && overlaps(player.body, level.goal) && (!level.boss || bossHealth <= 0)) won = true;
+}
+// 血量系统（原 blood.cpp 的三段逻辑并入本文件）：初始一滴血，受伤后 1 秒无敌，血量归零立即死亡。
+void World::resetBlood() { health = MaxHealth; hurtCooldown = 0; }
+void World::updateBlood(float dt) { hurtCooldown = std::max(0.0f, hurtCooldown - dt); }
+void World::hurt(const wchar_t* reason, int damage) {
+    // 同一次接触和同时命中的机关在无敌期内不会连续扣血。
+    if (dead || won || hurtCooldown > 0) return;
+    health = std::max(0, health - std::max(0, damage));
+    hurtCooldown = 1.0f;
+    if (health == 0) die(reason);
 }
 }
 

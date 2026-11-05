@@ -65,7 +65,7 @@
     <ClCompile Include="src\LevelDesign.cpp" /><ClInclude Include="src\Combat.h" /><ClCompile Include="src\Combat.cpp" />
     <ClInclude Include="src\SceneRenderer.h" /><ClCompile Include="src\SceneRenderer.cpp" />
     <ClCompile Include="src\main.cpp" /><ClCompile Include="src\World.cpp" />
-    <ResourceCompile Include="src\Weapons.rc" /><ClCompile Include="src\blood.cpp" /><ClCompile Include="src\Game.cpp" /><ClCompile Include="tests\WorldTests.cpp" />
+    <ResourceCompile Include="src\Weapons.rc" /><ClCompile Include="src\Game.cpp" /><ClCompile Include="tests\WorldTests.cpp" />
     <ClCompile Include="tests\ExtendedTests.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

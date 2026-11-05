@@ -55,8 +55,10 @@ struct Saw { Rect body; float originX, range, rate; };
 // 水平炮台按固定周期射击；拳头藏在平台内，踩踏后弹出并进入冷却。
 struct HorizontalCannon { Rect body; int direction = -1; float period = 2.6f, timer = 0; };
 struct SpringFist { Rect body; float timer = 0; };
-enum class ShotKind { Normal, Ban, Equation, Smoothness };
-struct Projectile { Rect body; float vx, vy, life = 3; bool hostile = false; ShotKind kind = ShotKind::Normal; };
+// 敌方弹幕分三类：普通圆形子弹、Claude 的封禁图片，以及 GPT 射出的文字字符串。
+enum class ShotKind { Normal, Ban, Text };
+// 字符串弹幕把要显示的文字一并存进弹丸，绘制层直接按内容画字，命中只眩晕不扣血。
+struct Projectile { Rect body; float vx, vy, life = 3; bool hostile = false; ShotKind kind = ShotKind::Normal; std::wstring text; };
 // 特殊陷阱保持世界坐标；夹击类型关联现有地面尖刺，使上下两侧同步动作。
 enum class TrapStyle { Ceiling, Crusher };
 struct OverheadTrap {
@@ -85,7 +87,8 @@ struct Player {
 struct Level {
     std::vector<Rect> platforms;
     std::vector<Rect> spikes;
-    Rect checkpoint;
+    // 每关可以摆放多个存档旗帜；角色只保留走过的最后一处作为重生点。
+    std::vector<Rect> checkpoints;
     Rect goal;
     float spawnX, spawnY;
     std::vector<int> spikeScores;
@@ -120,9 +123,9 @@ public:
     // 关卡必须先初始化，随后才能依据尖刺布局构建活动分组。
     Level level = Level::tutorial();
     Player player;
-    // 血量由 blood.cpp 管理，与重生体力分别计算；玩家只有一滴血，任何伤害都会直接死亡。
+    // 血量系统由 World 自己维护（原 blood.cpp 已并入 World.cpp），与重生体力分别计算；玩家只有一滴血，任何伤害都会直接死亡。
     static constexpr int MaxHealth = 1;
-    // GPT 的 NS方程/局部光滑性猜想 弹幕只眩晕不扣血；眩晕时间 2026-11-04 从 10 秒缩短为 2 秒。
+    // GPT 的字符串弹幕只眩晕不扣血；眩晕时间 2026-11-04 从 10 秒缩短为 2 秒。
     static constexpr float GptStunSeconds = 2.0f;
     int health = MaxHealth;
     float hurtCooldown = 0;
@@ -133,6 +136,8 @@ public:
     static constexpr int InitialStamina = 10;
     int stamina = InitialStamina;
     bool checkpointActive = false;
+    // 已激活存档点在 checkpoints 中的下标；重生与 HUD 都使用这一处。
+    std::size_t checkpointIndex = 0;
     bool won = false;
     bool dead = false;
     bool banPending = false;
