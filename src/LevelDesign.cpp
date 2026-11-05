@@ -75,15 +75,29 @@ Level Level::campaign(int index) {
     if (stage == 6) result.name = L"第7关 · 隐藏拳头";
     const auto end = result.platforms.back();
     result.goal = {end.x + 130, end.y - 52, 32, 52}; result.width = end.right();
-    // 每关在主路线前半段、中段与后段各放一面存档旗帜，减少长距离重跑。
+    // 存档点按水平距离均匀分成四段：出生区一面，之后等距三面，重生不用长距离重跑。
+    // BOSS 关把可用区间收在竞技场之前，避免在 BOSS 面前留下重生点。
     result.checkpoints.clear();
-    result.checkpoints.push_back({555, 386, 24, 44});
-    for (std::size_t i : {std::size_t(6), std::size_t(8)}) {
-        const auto& anchor = result.platforms[i];
-        result.checkpoints.push_back({anchor.x + 15, anchor.y - 44, 24, 44});
+    const float flagStart = 555.0f;
+    const float flagEnd = result.goal.x - (result.boss ? 900.0f : 600.0f);
+    const float flagSpan = std::max(0.0f, flagEnd - flagStart);
+    for (int slot = 0; slot < 4; ++slot) {
+        const float wanted = flagStart + flagSpan * slot / 3.0f;
+        // 旗帜要立在实地平台上：跳过会坍塌的平台，找离目标最近的稳定平台顶面。
+        const Rect* surface = nullptr;
+        float bestDistance = 1.0e9f;
+        for (std::size_t i = 0; i < result.platforms.size(); ++i) {
+            bool fragile = false;
+            for (const auto& piece : result.fragile) if (piece.index == i) fragile = true;
+            if (fragile) continue;
+            const Rect& platform = result.platforms[i];
+            const float distance = wanted < platform.x ? platform.x - wanted : (wanted > platform.right() ? wanted - platform.right() : 0.0f);
+            if (distance < bestDistance) { bestDistance = distance; surface = &platform; }
+        }
+        if (!surface) continue;
+        const float x = std::clamp(wanted, surface->x + 10.0f, surface->right() - 34.0f);
+        result.checkpoints.push_back({x, surface->y - 44.0f, 24, 44});
     }
-    // 第五关（以及同主题的第十、十五关）在 BOSS 与巡逻怪所在的后段再补一面旗帜。
-    if (index == 4) result.checkpoints.push_back({2075, 316, 24, 44});
     // 敌人形象按关卡投放：第一、二关只有近战的 Grok，第三关起 GPT 登场，第七关起 Claude 也可能出现。
     for (auto& enemy : result.enemies) {
         if (stage < 2) enemy.avatar = 2;

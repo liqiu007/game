@@ -350,6 +350,25 @@ void runExtendedTests() {
         std::string failure;
         for (int attempt = 0; attempt < 3 && !routed; ++attempt) {
         try {
+        // 存档点按距离均匀分布，且不能在 BOSS 竞技场前留下重生点。
+        {
+            World flags; flags.load(chapter);
+            require(flags.level.checkpoints.size() >= 4, "Each campaign level needs evenly spaced checkpoints");
+            float previous = 0.0f;
+            for (const auto& flag : flags.level.checkpoints) {
+                require(flag.x > previous, "Checkpoint flags must advance along the level");
+                previous = flag.x;
+            }
+            const float start = flags.level.checkpoints.front().x;
+            const float finish = flags.level.checkpoints.back().x;
+            const float average = (finish - start) / static_cast<float>(flags.level.checkpoints.size() - 1);
+            for (std::size_t i = 1; i < flags.level.checkpoints.size(); ++i) {
+                const float gap = flags.level.checkpoints[i].x - flags.level.checkpoints[i - 1].x;
+                require(gap > average * 0.55f && gap < average * 1.45f, "Checkpoint spacing must stay roughly even");
+            }
+            if (flags.level.boss)
+                require(finish < flags.level.goal.x - 600.0f, "Boss levels must not spawn next to the boss arena");
+        }
         World route; route.load(chapter);
         baitNearby(route);
         for (float target : {365.0f, 555.0f, 780.0f, 970.0f, 1180.0f, 1410.0f, 1640.0f, 1870.0f, 2080.0f}) {
