@@ -265,15 +265,11 @@ int runSelfTests() {
         menu.activate();
         check(!menu.settings.showHints, "Hint toggle must change value");
         menu.selected = 1;
-        menu.activate(); menu.activate(); menu.activate();
-        // 验证新增三个人物可被选择，最后循环回鲸鱼娘。
-        check(menu.itemText(1).find(L"Claude") != std::wstring::npos, "Claude selection missing");
-        menu.activate();
-        check(menu.itemText(1).find(L"GPT") != std::wstring::npos, "GPT selection missing");
-        menu.activate();
-        check(menu.itemText(1).find(L"Grok") != std::wstring::npos, "Grok selection missing");
-        menu.activate();
-        check(menu.settings.playerPalette == 0, "Character selection must wrap after six options");
+        menu.activate(); menu.activate();
+        // 设置里只保留 DeepSeek 一个角色，重复确认不会换形象。
+        check(menu.itemText(1).find(L"DeepSeek") != std::wstring::npos, "DeepSeek character selection missing");
+        check(menu.itemText(1).find(L"Claude") == std::wstring::npos, "AI roles must not be offered in settings");
+        check(menu.settings.playerPalette == 0, "Character selection must stay on DeepSeek");
         menu.selected = 2;
         menu.activate();
         check(menu.settings.frameLimit == 60, "Frame limit toggle must switch to 60 FPS");

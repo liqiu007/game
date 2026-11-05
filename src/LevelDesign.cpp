@@ -29,9 +29,12 @@ Level Level::campaign(int index) {
     const int stage = std::clamp(index, 0, 14);
     index = stage % 5;
     Level result = tutorial();
-    const wchar_t* names[]{L"小试牛刀", L"断桥危机", L"敌人来袭", L"小心激光", L"终章：BOSS战"};
-    result.theme = std::clamp(index, 0, 4);
-    result.name = L"第" + std::to_wstring(stage + 1) + L"关 · " + names[result.theme];
+    // 十五关各有独立关名：前五关沿用入门命名，第六关起按机关与场景递进重新取名。
+    const wchar_t* names[]{L"小试牛刀", L"断桥危机", L"敌人来袭", L"小心激光", L"终章：BOSS战",
+        L"水平弹幕", L"隐藏拳头", L"伏击林径", L"霓虹回廊", L"熔心终局",
+        L"苍崖逐风", L"残桥悬梯", L"暗林猎场", L"光栅深井", L"终焉：封禁王座"};
+    result.theme = std::clamp(stage % 5, 0, 4);
+    result.name = L"第" + std::to_wstring(stage + 1) + L"关 · " + names[stage];
     // 第二步：断桥关收窄桥面并加入踩踏后坍塌的平台与往返锯轮。
     if (index == 1) {
         for (std::size_t i = 1; i < result.platforms.size(); ++i) result.platforms[i].w -= 12;
@@ -71,8 +74,6 @@ Level Level::campaign(int index) {
         if (stage == 6 && i % 3 == 1) result.fists.push_back({{x + 80, y - 4, 32, 4}});
         if (i % 2 == 0) result.enemies.push_back({{x + 80, y - 28, 26, 28}, x + 30, x + 155});
     }
-    if (stage == 5) result.name = L"第6关 · 水平弹幕";
-    if (stage == 6) result.name = L"第7关 · 隐藏拳头";
     const auto end = result.platforms.back();
     result.goal = {end.x + 130, end.y - 52, 32, 52}; result.width = end.right();
     // 每关最多两面旗帜：第一面在出生区，第二面接近终点前；BOSS 关第二面提前收在竞技场之前。

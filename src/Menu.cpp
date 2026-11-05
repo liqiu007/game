@@ -7,6 +7,7 @@
 #pragma warning(disable: 4201)
 #include <graphics.h>
 #pragma warning(pop)
+#include <algorithm>
 
 namespace game {
 namespace {
@@ -59,8 +60,9 @@ std::wstring Menu::itemText(int index) const {
     if (page == Page::Settings) {
         if (index == 0) return std::wstring(L"操作提示   ") + (settings.showHints ? L"开启" : L"关闭");
         if (index == 1) {
-            const wchar_t* colors[]{L"深海蓝", L"海盐青", L"暮光紫", L"Claude", L"GPT", L"Grok"};
-            return std::wstring(L"选择角色   ") + (settings.playerPalette == 6 ? L"暖阳金" : (settings.playerPalette == 7 ? L"玫瑰红" : colors[settings.playerPalette]));
+            // 设置里只保留 DeepSeek 形象；商店购买的两种配色仍叠加在同一形象上。
+            const std::wstring suffix = settings.playerPalette == 6 ? L"（暖阳金）" : (settings.playerPalette == 7 ? L"（玫瑰红）" : L"");
+            return std::wstring(L"选择角色   DeepSeek") + suffix;
         }
         if (index == 2) return L"帧率上限   " + std::to_wstring(settings.frameLimit) + L" FPS";
         if (index == 3) {
@@ -131,7 +133,8 @@ MenuAction Menu::activate() {
     } else if (page == Page::Settings) {
         // 第三步：修改可立即生效的设置，设置页面自身不改变世界状态。
         if (selected == 0) settings.showHints = !settings.showHints;
-        else if (selected == 1) settings.playerPalette = (settings.playerPalette + 1) % 6;
+        // 角色固定为 DeepSeek，确认键不再切换形象；只有商店购买的配色会改变外观。
+        else if (selected == 1) {}
         else if (selected == 2) settings.frameLimit = settings.frameLimit == 120 ? 60 : 120;
         else if (selected == 3) settings.windowSize = (settings.windowSize + 1) % 4;
         else home();
@@ -159,9 +162,17 @@ void Menu::render() const {
             int x = 64 + i % 5 * 170, y = 210 + i / 5 * 108;
             fill(x,y,x+96,y+96,i == selected ? RGB(36,100,125) : RGB(24,36,53));
             text(x+12,y+18,itemText(i),24,enabled(i) ? RGB(239,245,255) : RGB(89,104,122));
-            // 已解锁关卡在卡片中部显示历史最高星数，低于往次通关不会把星星抹掉。
-            if (enabled(i)) drawLevelStars(x + 22, y + 56, account.bestStars[i]);
-            text(x+12,y+74,enabled(i) ? L"挑战" : L"未解锁",15,RGB(153,178,202));
+            if (enabled(i)) {
+                // 已解锁关卡在卡片中部显示历史最高星数，低于往次通关不会把星星抹掉。
+                drawLevelStars(x + 22, y + 56, account.bestStars[i]);
+                text(x+12,y+74,L"挑战",15,RGB(153,178,202));
+            } else {
+                // 锁定关卡只画一把几何锁，不再用“未解锁”文字占用卡片空间。
+                const int cx = x + 48, top = y + 56;
+                setlinecolor(RGB(150, 160, 175)); setfillcolor(RGB(100, 110, 125));
+                arc(cx - 12, top, cx + 12, top + 26, 0, 3.14159265);
+                solidrectangle(cx - 15, top + 12, cx + 15, top + 30);
+            }
         }
         text(64,550,L"返回游戏模式",20,selected == 15 ? RGB(95,213,255) : RGB(153,178,202));
         text(300,560,L"W / S 选择 · Enter 确认 · Esc 返回",16,RGB(153,178,202));
@@ -193,10 +204,13 @@ void Menu::render() const {
     }
     // 绘制步骤三：右侧说明当前关卡主题或玩法，不把选关入口放回主页面。
     fill(492, 188, 900, 544, RGB(21, 32, 49));
-    const wchar_t* names[]{L"小试牛刀", L"断桥危机", L"敌人来袭", L"小心激光", L"终章：BOSS战"};
+    // 十五关各有独立关名；主题仍按五关一轮循环，BOSS 关固定在第 5、10、15 关。
+    const wchar_t* names[]{L"小试牛刀", L"断桥危机", L"敌人来袭", L"小心激光", L"终章：BOSS战",
+        L"水平弹幕", L"隐藏拳头", L"伏击林径", L"霓虹回廊", L"熔心终局",
+        L"苍崖逐风", L"残桥悬梯", L"暗林猎场", L"光栅深井", L"终焉：封禁王座"};
     const wchar_t* themes[]{L"青翠山谷 / 尖刺入门", L"暮色峡谷 / 断桥与锯轮", L"幽暗森林 / 巡逻敌人", L"霓虹实验室 / 定时激光", L"熔岩要塞 / BOSS 弹幕"};
-    const int chapter = page == Page::Levels && selected < 15 ? selected : chosenLevel;
-    text(520, 210, page == Page::Modes && selected == 1 ? L"无尽模式" : names[chapter % 5], 25, RGB(239, 245, 255));
+    const int chapter = std::clamp(page == Page::Levels && selected < 15 ? selected : chosenLevel, 0, 14);
+    text(520, 210, page == Page::Modes && selected == 1 ? L"无尽模式" : names[chapter], 25, RGB(239, 245, 255));
     text(520, 250, page == Page::Modes && selected == 1 ? L"持续生成 / 距离与积分挑战" : themes[chapter % 5], 17, RGB(153, 178, 202));
     fill(536, 432, 860, 452, RGB(52, 71, 94));
     fill(650, 304, 850, 314, RGB(52, 71, 94));

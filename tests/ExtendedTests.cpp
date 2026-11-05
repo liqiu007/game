@@ -359,6 +359,16 @@ void runExtendedTests() {
             require(finish > flags.level.checkpoints.front().x + 400.0f, "Second checkpoint must sit far enough from the first");
             if (flags.level.boss)
                 require(finish < flags.level.goal.x - 600.0f, "Boss levels must not spawn next to the boss arena");
+            // 十五关各有独立关名，第六关起不再沿用前五关的循环命名。
+            if (chapter == 0) {
+                std::vector<std::wstring> titles;
+                for (int i = 0; i < 15; ++i) { World named; named.load(i); titles.push_back(named.level.name); }
+                for (std::size_t i = 0; i < titles.size(); ++i)
+                    for (std::size_t j = i + 1; j < titles.size(); ++j)
+                        require(titles[i] != titles[j], "Campaign level names must be unique");
+                require(titles[5].find(L"水平弹幕") != std::wstring::npos, "Level 6 must be renamed");
+                require(titles[14].find(L"终焉") != std::wstring::npos, "Final level must be renamed");
+            }
         }
         World route; route.load(chapter);
         baitNearby(route);
