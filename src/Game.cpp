@@ -135,12 +135,17 @@ int Game::run(Preview preview, bool debugSix) {
         for (int i = 0; i < 12; ++i) world.update({}, FixedStep);
     }
     // 主题预览定位到具有代表性的机关区域，真实关卡配置与正常游戏一致。
-    if (preview == Preview::Bridge || preview == Preview::Enemies || preview == Preview::Lasers || preview == Preview::Boss || preview == Preview::Final || preview == Preview::Endless) {
-        const int chapter = preview == Preview::Bridge ? 1 : (preview == Preview::Enemies ? 2 : (preview == Preview::Lasers ? 3 : (preview == Preview::Boss ? 4 : 14)));
+    if (preview == Preview::Bridge || preview == Preview::Enemies || preview == Preview::Lasers || preview == Preview::Boss || preview == Preview::Final || preview == Preview::Highland || preview == Preview::Endless) {
+        const int chapter = preview == Preview::Bridge ? 1 : (preview == Preview::Enemies ? 2 : (preview == Preview::Lasers ? 3 : (preview == Preview::Boss ? 4 : (preview == Preview::Highland ? 10 : 14))));
         world.load(chapter, preview == Preview::Endless);
         if (preview == Preview::Boss || preview == Preview::Final) {
             // 停在新位置 BOSS 的左侧，画面同时拍到 BOSS 与终点门。
             world.player.body = {world.level.bossBody.x - 220.0f, world.level.bossBody.y + world.level.bossBody.h - 28.0f, 24, 28};
+        }
+        // 苍崖逐风预览停在扩展段的巡逻者前方，用来核对这一关确实有怪物生成。
+        else if (preview == Preview::Highland) {
+            const float target = world.level.enemies.front().body.x - 260.0f;
+            world.player.body = {target, 332, 24, 28};
         }
         // 无尽预览停在开局二十段之后，让巡逻怪物、落刺与新机关一起进入画面。
         else if (preview == Preview::Endless) { world.player.body.x = 2000; world.extendEndless(); }
@@ -386,6 +391,7 @@ int Game::run(Preview preview, bool debugSix) {
             case Preview::Lasers: path = L"lasers-smoke-test.png"; break;
             case Preview::Boss: path = L"boss-smoke-test.png"; break;
             case Preview::Final: path = L"final-smoke-test.png"; break;
+            case Preview::Highland: path = L"highland-smoke-test.png"; break;
             case Preview::Endless: path = L"endless-smoke-test.png"; break;
             case Preview::Adventure: path = L"adventure-smoke-test.png"; break;
             case Preview::Exhausted: path = L"exhausted-smoke-test.png"; break;

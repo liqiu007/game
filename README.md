@@ -129,7 +129,7 @@ msbuild game.sln /m /p:Configuration=Release /p:Platform=x64
 
 联合版本还测试五条实际米饭路线：从出生点二段跳上高台、踩弹簧、经过活动机关、收集米饭，再安全回到主线；验证死亡保留、重开清除和奖励防刷。独立物理测试覆盖短按/长按跳跃、离边容错、跳跃缓存、单向平台穿越、平台携带/脱离、定时平台失效、弹簧、落刺预警与伤害。
 
-截图预览会自动退出，图片在当前工作目录并被 Git 忽略：`--menu-smoke-test`、`--modes-smoke-test`、`--levels-smoke-test`、`--settings-smoke-test`、`--window-smoke-test`、`--smoke-test`、`--bridge-smoke-test`、`--enemies-smoke-test`、`--lasers-smoke-test`、`--boss-smoke-test`、`--endless-smoke-test`、`--death-smoke-test`、`--spike-smoke-test`、`--traps-smoke-test`、`--map-smoke-test`。
+截图预览会自动退出，图片在当前工作目录并被 Git 忽略：`--menu-smoke-test`、`--modes-smoke-test`、`--levels-smoke-test`、`--settings-smoke-test`、`--window-smoke-test`、`--smoke-test`、`--bridge-smoke-test`、`--enemies-smoke-test`、`--lasers-smoke-test`、`--boss-smoke-test`、`--final-smoke-test`、`--highland-smoke-test`、`--endless-smoke-test`、`--death-smoke-test`、`--spike-smoke-test`、`--traps-smoke-test`、`--map-smoke-test`。
 
 `--adventure-smoke-test` 展示第五关高路的鲸鱼娘、移动平台、米饭与真实落刺预警。
 
@@ -177,6 +177,8 @@ Windows 安装 Visual Studio C++ 桌面开发工作负载及 EasyX 后，在 Pow
 玩家系统由 src/PlayerSystem.cpp 独立实现：每次启动输入 1–20 字昵称，无密码；同昵称读取同一本地档案，不代表联网身份验证。每个昵称独立保存金币、已购配色、开放关卡、最高星数与最高分，默认位于 %LOCALAPPDATA%/IWannaGame/players。初始只开放第一关，通关（任意星数）顺序解锁下一关，锁定关卡的卡片只画一把几何锁、不再用“未解锁”文字，并拒绝鼠标/键盘进入。取消登录退出；空昵称、损坏或不可写存档不会进入主页面。新昵称从零开始，原 account.txt 保留不覆盖；存档记录关卡进度，不保存关卡内即时位置。登录时会先探测可写目录：默认目录不可写（例如游戏被沙箱或受限进程启动）时，依次改用程序目录下的 saves/players、当前目录的 saves/players 和临时目录，并把旧档迁移过去；多个目录都存在同一昵称的档案时读取最后写入的一份再迁移，避免沙箱里产生的新进度被旧档覆盖；HUD 会显示正在使用备用目录，四处全部不可写时登录失败并弹窗提示。
 
 2026-11-04：闯关扩展为十五关，五列三行正方形卡片选关，保留顺序解锁；每关追加六至十二段平台。巡逻怪物按关卡投放：第一、二关只有近战的 Grok，第三关起 GPT 登场，第七关起 Claude 也可能出现；重生保留本局形象，无尽新增怪物同样随机。存档升级为版本 3，兼容读取版本 2。
+
+2026-11-06 每一关都必须有怪物：此前地图差异化后，第 1、2、11 关的机关组合里没有任何 `enemies.push_back`，第 9、14 关也只剩一名巡逻者，玩起来像“只生成机关、没生成怪物”。现在机关表为这些关卡补上巡逻者，并在 `Level::campaign` 末尾加了兜底：扩展段中段若仍不足两只，就在避开旗帜与终点区的平台上补到两只，再统一赋形象（Grok/GPT/Claude）。自测新增“每关至少两只怪物、形象编号有效”的断言，防止以后改机关表时再漏掉。
 
 2026-11-04 更新：继续入口仅恢复本次运行的无尽进度，切换闯关时保留无尽世界。十五关的扩展路段加入断桥、定时激光和倒挂尖刺；第六关新增水平定时炮台（发射前亮灯），第七关新增踩踏触发的隐藏弹簧拳头（弹飞后可空中补跳）。新机关暂停冻结，重生复位。
 

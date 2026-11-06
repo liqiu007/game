@@ -29,6 +29,7 @@ int main(int argc, char* argv[]) {
         if (option == "--lasers-smoke-test") preview = game::Preview::Lasers;
         if (option == "--boss-smoke-test") preview = game::Preview::Boss;
         if (option == "--final-smoke-test") preview = game::Preview::Final;
+        if (option == "--highland-smoke-test") preview = game::Preview::Highland;
         if (option == "--endless-smoke-test") preview = game::Preview::Endless;
         if (option == "--adventure-smoke-test") preview = game::Preview::Adventure;
         if (option == "--victory-smoke-test") preview = game::Preview::Victory;

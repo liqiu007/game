@@ -105,10 +105,14 @@ void addCampaignHazards(Level& level, int stage) {
         case 0:
             // 小试牛刀：只在部分路段立一排倒挂尖刺，留出完整地面通过。
             if (i % 3 == 2) level.overheadTraps.push_back({{x + w * 0.5f - 12, y - 170, 24, 42}, TrapStyle::Ceiling});
+            // 后半程放两只近战 Grok，避免整关只有机关、没有可踩可射的靶子。
+            if (!reserved && i % 3 == 1) level.enemies.push_back({{x + w * 0.5f, y - 28, 26, 28}, x + 20, x + w - 40});
             break;
         case 1:
             // 断桥危机：悬空往返锯轮配合已经加入的坍塌桥面，逼迫玩家跳得干脆。
             if (!reserved && i % 3 == 1) level.saws.push_back({{x + w * 0.5f, y - 80, 22, 22}, x + w * 0.5f, 26, 1.5f});
+            // 桥面上夹两名巡逻者，断桥与锯轮之间仍需清理敌人。
+            if (!reserved && i % 3 == 1) level.enemies.push_back({{x + w - 60, y - 28, 26, 28}, x + 20, x + w - 40});
             break;
         case 2:
             // 敌人来袭：巡逻者与激光交替出现，考验“先清场再跳”的节奏。
@@ -147,6 +151,8 @@ void addCampaignHazards(Level& level, int stage) {
             // 霓虹回廊：又窄又密的灯廊，光柱与锯轮交替，站位必须精确。
             if (i % 2 == 0) level.lasers.push_back({{x + w * 0.5f, y - 105, 10, 105}, 3.6f, 0.8f, 1.4f});
             if (i % 2 == 1) level.saws.push_back({{x + w * 0.5f, y - 70, 20, 20}, x + w * 0.5f, 24, 1.7f});
+            // 灯廊里也安排巡逻者，被光柱逼停时正好要面对它。
+            if (i % 3 == 2) level.enemies.push_back({{x + w - 60, y - 28, 26, 28}, x + 30, x + w - 40});
             break;
         case 9:
             // 熔心终局：下沉平台配上锯轮与炮台，需要边后退边等机关冷却。
@@ -158,6 +164,8 @@ void addCampaignHazards(Level& level, int stage) {
             // 苍崖逐风：连续登高的崖壁上落刺不断，考验向上跳的时机。
             if (i % 3 == 1) level.fallingSpikes.push_back({{x + 50, y - 185, 22, 28}, y - 185});
             if (i % 3 == 2) level.overheadTraps.push_back({{x + w - 60, y - 175, 24, 44}, TrapStyle::Ceiling});
+            // 崖壁上的巡逻者负责挡住上升节奏，踩头或射击都可以清掉。
+            if (!reserved && i % 3 == 0) level.enemies.push_back({{x + w * 0.5f, y - 28, 26, 28}, x + 20, x + w - 40});
             break;
         case 11:
             // 残桥悬梯：一路下坠的残梯中夹着落刺与巡逻者，踩上脆板要立刻起跳。
@@ -174,6 +182,8 @@ void addCampaignHazards(Level& level, int stage) {
             // 光栅深井：井底的密集光栅，只有在熄灭的瞬间才能穿过。
             if (i % 2 == 0) level.lasers.push_back({{x + w * 0.5f - 20, y - 125, 10, 125}, 3.0f, 0.9f, 0.5f});
             if (i % 3 == 1) level.lasers.push_back({{x + w - 50, y - 125, 10, 125}, 3.6f, 0.8f, 1.8f});
+            // 井底尽头安排巡逻者，躲完光栅还要处理一个正面敌人。
+            if (!reserved && i % 3 == 2) level.enemies.push_back({{x + w - 60, y - 28, 26, 28}, x + 30, x + w - 40});
             break;
         default:
             // 终焉：王座台阶把前面用过的机关各取一点，作为最后的综合考验。
@@ -264,6 +274,15 @@ Level Level::campaign(int index) {
     }
     // 存档点确定后再摆放扩展段机关：机关会跳过有旗帜的平台，玩家重生时不会直接落在危险物里。
     addCampaignHazards(result, stage);
+    // 兜底保证：有些关卡的机关组合（纯机关关）或旗帜占位会让扩展段一只怪物都没排上，
+    // 这里在扩展段中段补足到至少两只巡逻者，保证每一关都有可踩、可射的敌人。
+    for (std::size_t i = 10; i + 1 < result.platforms.size() && result.enemies.size() < 2; ++i) {
+        const Rect& platform = result.platforms[i];
+        if (holdsCampaignFlag(result, platform)) continue;
+        if (platform.right() > result.goal.x - 420.0f) continue;
+        result.enemies.push_back({{platform.x + platform.w * 0.5f, platform.y - 28.0f, 26, 28},
+            platform.x + 20.0f, platform.right() - 40.0f});
+    }
     // 敌人形象按关卡投放：第一、二关只有近战的 Grok，第三关起 GPT 登场，第七关起 Claude 也可能出现。
     for (auto& enemy : result.enemies) {
         if (stage < 2) enemy.avatar = 2;
