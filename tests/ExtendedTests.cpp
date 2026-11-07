@@ -390,12 +390,12 @@ void runExtendedTests() {
                         require(titles[i] != titles[j], "Campaign level names must be unique");
                 require(titles[5].find(L"水平弹幕") != std::wstring::npos, "Level 6 must be renamed");
                 require(titles[14].find(L"终焉") != std::wstring::npos, "Final level must be renamed");
-                // 每一关都必须真的生成怪物：至少两只，且形象编号有效（-1 表示忘了赋值）。
-                // 之前第 11 关的机关组合里没有 enemies.push_back，整关只有机关没有敌人。
+                // 每一关都必须真的生成怪物：至少六只，且形象编号有效（-1 表示忘了赋值）。
+                // 机关表漏写 enemies.push_back 时曾经出现过整关只有机关没有敌人的情况。
                 for (int i = 0; i < 15; ++i) {
                     World armed; armed.load(i);
-                    if (armed.level.enemies.size() < 2)
-                        throw std::runtime_error(("Chapter " + std::to_string(i + 1) + " must spawn at least two enemies").c_str());
+                    if (armed.level.enemies.size() < 6)
+                        throw std::runtime_error(("Chapter " + std::to_string(i + 1) + " must spawn at least six enemies").c_str());
                     for (const auto& armedEnemy : armed.level.enemies)
                         require(armedEnemy.avatar >= 0 && armedEnemy.avatar < 3, "Campaign enemies must have a valid avatar");
                 }

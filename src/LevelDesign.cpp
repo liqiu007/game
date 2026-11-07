@@ -193,6 +193,16 @@ void addCampaignHazards(Level& level, int stage) {
             if (i % 2 == 1) level.enemies.push_back({{x + w * 0.5f, y - 28, 26, 28}, x + 30, x + w - 40});
             break;
         }
+        // 统一增加怪物密度：机关配置只决定“这一关的机关语言”，怪物数量单独加一层，
+        // 让十五关都能稳定出现 5 只以上的巡逻者。每两段补一名，且避开已有怪物的平台，
+        // 同时保留上限，避免终焉关与 BOSS 战被怪堆淹没。
+        const bool dense = level.enemies.size() < 8 && i % 2 == 0 && !reserved;
+        if (dense) {
+            const bool occupied = std::any_of(level.enemies.begin(), level.enemies.end(), [&](const Enemy& enemy) {
+                return enemy.body.x < x + w && enemy.body.x + enemy.body.w > x;
+            });
+            if (!occupied) level.enemies.push_back({{x + w * 0.65f, y - 28, 26, 28}, x + 20, x + w - 40});
+        }
     }
 }
 }
@@ -274,12 +284,17 @@ Level Level::campaign(int index) {
     }
     // 存档点确定后再摆放扩展段机关：机关会跳过有旗帜的平台，玩家重生时不会直接落在危险物里。
     addCampaignHazards(result, stage);
-    // 兜底保证：有些关卡的机关组合（纯机关关）或旗帜占位会让扩展段一只怪物都没排上，
-    // 这里在扩展段中段补足到至少两只巡逻者，保证每一关都有可踩、可射的敌人。
-    for (std::size_t i = 10; i + 1 < result.platforms.size() && result.enemies.size() < 2; ++i) {
+    // 数量兜底：机关配置与旗帜占位都可能让某关怪物偏少，这里从主路中段一路补到扩展段，
+    // 直到每关至少六只巡逻者，保证十五关的怪物密度大致一致；出生点附近留出安全区。
+    for (std::size_t i = 3; i + 1 < result.platforms.size() && result.enemies.size() < 6; ++i) {
         const Rect& platform = result.platforms[i];
+        if (platform.x < result.spawnX + 420.0f) continue;
         if (holdsCampaignFlag(result, platform)) continue;
         if (platform.right() > result.goal.x - 420.0f) continue;
+        const bool occupied = std::any_of(result.enemies.begin(), result.enemies.end(), [&](const Enemy& enemy) {
+            return enemy.body.x < platform.right() && enemy.body.x + enemy.body.w > platform.x;
+        });
+        if (occupied) continue;
         result.enemies.push_back({{platform.x + platform.w * 0.5f, platform.y - 28.0f, 26, 28},
             platform.x + 20.0f, platform.right() - 40.0f});
     }
