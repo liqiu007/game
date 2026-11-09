@@ -58,6 +58,104 @@ const StageLayout Layouts[15] = {
     {{75, 65, 75}, {200, 220, 190}, {400, 360, 320, 360, 400, 440}},   // 15 终焉：王座台阶
 };
 
+// 开局前段的起伏表：第 2~9 块基础平台在原高度上做像素级抬升（负数为抬高），
+// 让十五关的起步区各有节奏——有的先爬升，有的先下坡，有的是台阶或深谷；
+// 相邻平台的高度差控制在 50 以内，单跳或二段跳都能上去。
+const int EarlyLift[15][8] = {
+    {0, 0, 0, 0, 0, 0, 0, 0},                    // 1 平缓入门
+    {-30, -50, -20, 10, 30, 10, -10, 20},        // 2 拱桥前的爬升
+    {0, -40, -60, -20, 10, -20, -50, -20},       // 3 深谷里的高台
+    {20, 0, -30, -50, -20, 0, 20, 40},           // 4 缓坡下沉
+    {-20, -40, -20, 10, 30, 50, 30, 10},         // 5 竞技场前的抬高
+    {0, 20, 0, 20, 0, 20, 0, 20},                // 6 长桥台阶
+    {-40, -60, -30, 0, 30, 50, 20, 0},           // 7 拳台高台
+    {30, 10, -20, -40, -20, 0, 20, 40},          // 8 树冠起伏
+    {-10, -30, -50, -30, -10, 10, 30, 50},       // 9 连续登高
+    {40, 20, 0, -30, -50, -30, -10, 10},         // 10 井口下沉再爬升
+    {0, -40, -60, -20, 10, 40, 50, 30},          // 11 崖壁爬升
+    {50, 30, 10, -10, -30, -50, -30, -10},       // 12 残梯下坠
+    {-30, 0, 30, 0, -30, 0, 30, 0},              // 13 林间台阶
+    {20, -10, -40, -60, -30, 0, 20, 50},         // 14 深井起伏
+    {0, -20, -40, -60, -40, -20, 0, 20},         // 15 王座前的爬升
+};
+
+// 某块平台是不是断桥（踩上去会坍塌）。断桥上不允许摆放任何东西。
+bool isFragileIndex(const Level& level, std::size_t index) {
+    for (const auto& piece : level.fragile)
+        if (piece.index == index) return true;
+    return false;
+}
+
+// 按水平位置找到机关脚下的平台；开局地形升降后用它把机关重新贴回平台顶面。
+const Rect* platformUnderX(const Level& level, float x) {
+    for (const auto& platform : level.platforms)
+        if (x >= platform.x && x < platform.right()) return &platform;
+    return nullptr;
+}
+
+// 开局地形调整之后，把原本按旧高度硬编码的尖刺、锯轮、巡逻者和光柱重新吸附到平台顶面，
+// 避免出现悬空机关或半截埋进桥面的情况。
+void snapBaseProps(Level& level) {
+    // 地面尖刺本身就是矩形，直接按中心点找脚下的平台。
+    for (auto& spike : level.spikes)
+        if (const Rect* platform = platformUnderX(level, spike.x + spike.w * 0.5f))
+            spike.y = platform->y - spike.h;
+    for (auto& saw : level.saws)
+        if (const Rect* platform = platformUnderX(level, saw.body.x + saw.body.w * 0.5f))
+            saw.body.y = platform->y - 90.0f;
+    for (auto& enemy : level.enemies)
+        if (const Rect* platform = platformUnderX(level, enemy.body.x + enemy.body.w * 0.5f))
+            enemy.body.y = platform->y - enemy.body.h;
+    for (auto& laser : level.lasers)
+        if (const Rect* platform = platformUnderX(level, laser.body.x))
+            laser.body.y = platform->y - laser.body.h;
+}
+
+// 应用开局起伏：只改平台高度，X 坐标保持不变，因此巡逻边界与金币位置都不受影响。
+void applyEarlyLayout(Level& level, int stage) {
+    for (int i = 0; i < 8; ++i) {
+        const std::size_t index = static_cast<std::size_t>(i + 2);
+        if (index >= level.platforms.size()) break;
+        const float y = level.platforms[index].y + static_cast<float>(EarlyLift[stage][i]);
+        level.platforms[index].y = std::clamp(y, 260.0f, 520.0f);
+    }
+    snapBaseProps(level);
+}
+
+// 判断某个矩形是否压在断桥上：水平范围相交，且垂直方向处在桥面或桥面上方的机关高度内。
+bool standsOnFragile(const Level& level, const Rect& body) {
+    for (const auto& piece : level.fragile) {
+        if (piece.index >= level.platforms.size()) continue;
+        const Rect& bridge = level.platforms[piece.index];
+        const bool overBridge = body.right() > bridge.x && body.x < bridge.right();
+        if (overBridge && body.y < bridge.y + 4.0f && body.bottom() > bridge.y - 300.0f) return true;
+    }
+    return false;
+}
+
+// 断桥清理：门、旗帜、怪物、各类机关与金币都不能落在会坍塌的平台上；
+// 最后一个平台承载终点门，必须保持实体，因此也从断桥名单里剔除。
+void sanitizeFragile(Level& level) {
+    level.fragile.erase(std::remove_if(level.fragile.begin(), level.fragile.end(),
+        [&](const FragilePlatform& piece) { return piece.index + 1 >= level.platforms.size(); }),
+        level.fragile.end());
+    auto purge = [&](auto& props) {
+        props.erase(std::remove_if(props.begin(), props.end(),
+            [&](const auto& prop) { return standsOnFragile(level, prop.body); }), props.end());
+    };
+    purge(level.enemies);
+    purge(level.lasers);
+    purge(level.saws);
+    purge(level.cannons);
+    purge(level.fists);
+    purge(level.fallingSpikes);
+    purge(level.overheadTraps);
+    purge(level.coins);
+    // 旗帜已经在挑选阶段跳过断桥，这里只需处理意外落到桥面上的矩形。
+    level.checkpoints.erase(std::remove_if(level.checkpoints.begin(), level.checkpoints.end(),
+        [&](const Rect& flag) { return standsOnFragile(level, flag); }), level.checkpoints.end());
+}
+
 // 扩展段只负责铺路：先只生成平台，机关稍后再按关卡单独摆放。
 // 这样存档旗帜可以先挑选落脚平台，地面类机关再避开这些平台，重生点不会落在危险物上。
 void buildCampaignExpansion(Level& level, int stage) {
@@ -75,8 +173,9 @@ void buildCampaignExpansion(Level& level, int stage) {
         level.platforms.push_back({x, y, width, 24});
         level.platformScores.push_back(250);
         // 断桥危机与残桥悬梯两关会掺入踩踏后坍塌的平台；它们在挑选旗帜之前加入，
-        // 让第二面旗帜自动避开这些会消失的落脚点。
-        if ((stage == 1 && i % 3 == 2) || (stage == 11 && i % 3 == 0)) level.fragile.push_back({level.platforms.size() - 1});
+        // 让第二面旗帜自动避开这些会消失的落脚点。最后一块平台承载终点门，永远保持实体。
+        if (((stage == 1 && i % 3 == 2) || (stage == 11 && i % 3 == 0)) && i + 1 < count)
+            level.fragile.push_back({level.platforms.size() - 1});
     }
 }
 
@@ -94,6 +193,8 @@ void addCampaignHazards(Level& level, int stage) {
     // 扩展段从第 10 块平台开始；i 用于让机关按“段序”错开摆放，不依赖绝对下标。
     const std::size_t first = 10;
     for (std::size_t index = first; index < level.platforms.size(); ++index) {
+        // 断桥上什么都不能有：整段跳过，连怪物密度也不往这里补。
+        if (isFragileIndex(level, index)) continue;
         const Rect platform = level.platforms[index];
         // 终点平台以及终点前最后一小段保持干净：不摆贴地机关与远程机关。
         // 这样结算区有安全落脚点，终焉关的 BOSS 与守门 Claude 也不会和残留炮台互相干扰。
@@ -224,7 +325,9 @@ Level Level::campaign(int index) {
     if (index == 1) {
         for (std::size_t i = 1; i < result.platforms.size(); ++i) result.platforms[i].w -= 12;
         result.fragile = {{1}, {4}, {6}, {8}};
-        result.saws = {{{985, 340, 24, 24}, 985, 55, 1.7f}, {{1880, 330, 24, 24}, 1880, 48, 1.4f}};
+        // 锯轮悬在会坍塌的桥面上就是“断桥上摆了东西”，改挂到第 5、7 块实体平台的斜上方；
+        // 这两个位置也不挡出生点高路（星羽支线）的落回路线。
+        result.saws = {{{1220, 330, 24, 24}, 1220, 55, 1.7f}, {{1700, 320, 24, 24}, 1700, 48, 1.4f}};
     }
     // 第三步：敌人关布置巡逻者，玩家可从上方踩击或使用 J 发射子弹。
     if (index == 2) {
@@ -244,6 +347,9 @@ Level Level::campaign(int index) {
         result.lasers = {{{1450, 260, 12, 155}, 4.0f, 1.0f, 2.0f}};
         result.saws = {{{980, 335, 24, 24}, 980, 40, 1.3f}};
     }
+    // 开局前段按关卡做起伏：十五关的起步区不再共用同一条水平走廊，
+    // 有的直接向上爬、有的先下坡再爬，玩家也可以顺着抬高的平台往高处走。
+    applyEarlyLayout(result, stage);
     // 高路提供星羽探索奖励，各关使用不同移动方向、定时平台或预警落刺。
     buildAdventureRoute(result);
     // 扩展段按本关地形卡铺路：每关的高度起伏、平台宽窄与间距都不一样，主路线不再是同一条走廊。
@@ -288,6 +394,7 @@ Level Level::campaign(int index) {
     // 直到每关至少六只巡逻者，保证十五关的怪物密度大致一致；出生点附近留出安全区。
     for (std::size_t i = 3; i + 1 < result.platforms.size() && result.enemies.size() < 6; ++i) {
         const Rect& platform = result.platforms[i];
+        if (isFragileIndex(result, i)) continue;
         if (platform.x < result.spawnX + 420.0f) continue;
         if (holdsCampaignFlag(result, platform)) continue;
         if (platform.right() > result.goal.x - 420.0f) continue;
@@ -304,13 +411,18 @@ Level Level::campaign(int index) {
         else if (stage < 6) enemy.avatar = 1 + avatar() % 2;
         else enemy.avatar = avatar();
     }
+    // 断桥终检：门、旗帜、怪物与机关都不能落在会坍塌的平台上；
+    // 这一步也保证最后一个平台（承载终点门）永远保持实体。
+    sanitizeFragile(result);
     // 终焉关：Claude 站在终点门右侧、与 BOSS 一起守关，站着不动但持续甩出封禁图片。
     if (stage == 14) {
         result.banStorm = true;
         result.enemies.push_back({{result.goal.x + 100.0f, result.goal.y + result.goal.h - 28.0f, 26, 28},
             result.goal.x + 100.0f, result.goal.x + 100.0f, 0.0f, 1, true, 0});
     }
-    for (std::size_t i = 0; i < result.platforms.size(); ++i) addRoadCoins(result, i);
+    // 金币最后统一补齐；断桥上的金币会随桥面消失，所以直接跳过。
+    for (std::size_t i = 0; i < result.platforms.size(); ++i)
+        if (!isFragileIndex(result, i)) addRoadCoins(result, i);
     return result;
 }
 void World::load(int index, bool endlessMode) {

@@ -30,6 +30,8 @@ int main(int argc, char* argv[]) {
         if (option == "--boss-smoke-test") preview = game::Preview::Boss;
         if (option == "--final-smoke-test") preview = game::Preview::Final;
         if (option == "--highland-smoke-test") preview = game::Preview::Highland;
+        if (option == "--goal-smoke-test") preview = game::Preview::Goal;
+        if (option == "--start-smoke-test") preview = game::Preview::Start;
         if (option == "--endless-smoke-test") preview = game::Preview::Endless;
         if (option == "--adventure-smoke-test") preview = game::Preview::Adventure;
         if (option == "--victory-smoke-test") preview = game::Preview::Victory;

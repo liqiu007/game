@@ -85,27 +85,37 @@ src/LevelDesign.cpp
   - Level::campaign(index)：按关卡号生成整关。
     1) tutorial() 基础路线
     2) 前五关的机制套件（断桥、巡逻敌人、定时激光、BOSS 热身）
-    3) buildAdventureRoute()：星羽支线（高路平台、弹簧、落刺、星羽）
-    4) buildCampaignExpansion()：按 StageLayout 表铺设扩展段（每关不同间距/宽度/高度）
-    5) 终点、BOSS 站位与 BOSS 门（bossGate）
-    6) 两面存档旗帜（按距离均匀分布，避开会坍塌的平台）
-    7) addCampaignHazards()：按关卡表摆放这关独有的机关组合
-    8) 敌人形象投放（第 1–2 关只有 Grok，第 3 关起 GPT，第 7 关起 Claude）
-    9) 终焉关（第 15 关）在终点门旁放静止 Claude，持续甩封禁图片
-   10) 统一给所有平台补金币
+    3) applyEarlyLayout()：按 EarlyLift 表把第 2–9 块基础平台整体抬高或压低（开局起伏）
+    4) buildAdventureRoute()：星羽支线（高路平台、弹簧、落刺、星羽）
+    5) buildCampaignExpansion()：按 StageLayout 表铺设扩展段（每关不同间距/宽度/高度）
+    6) 终点、BOSS 站位与 BOSS 门（bossGate）
+    7) 两面存档旗帜（按距离均匀分布，避开会坍塌的平台）
+    8) addCampaignHazards()：按关卡表摆放这关独有的机关组合（跳过断桥平台）
+    9) sanitizeFragile()：断桥桥面上清空怪物/机关/金币/旗帜，终点平台必须是实体
+   10) 敌人形象投放（第 1–2 关只有 Grok，第 3 关起 GPT，第 7 关起 Claude）
+   11) 终焉关（第 15 关）在终点门旁放静止 Claude，持续甩封禁图片
+   12) 统一给所有平台补金币（跳过断桥）
 
   - 关键表：
       Layouts[15]：每关的平台间距(gaps)、宽度(widths)、六段高度循环(heights)。
       修改某关地形，改对应的 Layouts 行即可；heights 是绝对 Y 坐标，
       相邻两段高差不超过 80 像素才能保证二段跳可达。
+      EarlyLift[15][8]：第 2–9 块基础平台的抬升量（负值向上、正值向下），
+      相邻差 ≤50，最终高度钳制在 260–520；改“每关一开始怎么起伏”改这张表。
       themes[15]：每关主题配色（0–4 循环，无尽模式用 5）。
       names[15]：十五关关名。
+
+  - 断桥规则（isFragileIndex / sanitizeFragile / snapBaseProps）：
+      断桥（fragile）是踩上去会塌的平台；终点平台与它前后两段不允许是断桥，
+      桥面上也不能站怪物、放激光/锯轮/炮台/拳头/落刺/金币或插旗帜。
+      调整平台高度后 snapBaseProps 会把原有机关重新吸附到新平台顶面。
 
   - extendEndless()：无尽模式按深度不断向右生成平台、尖刺、七类机关，
     第 30 段之后可能出现 Claude；越深机关越密，主题每八段切换。
 
 src/main.cpp / src/Game.cpp 里的 Preview：
-  --bridge-smoke-test（第 2 关）、--enemies-smoke-test（第 3 关）、
+  --bridge-smoke-test（第 2 关中段）、--start-smoke-test（第 2 关开局起伏）、
+  --goal-smoke-test（第 2 关终点门）、--enemies-smoke-test（第 3 关）、
   --boss-smoke-test（第 15 关 BOSS）、--final-smoke-test（终焉关）等，
   用于给某类关卡截图核对。
 
@@ -224,15 +234,18 @@ build\ 目录（不提交到仓库）存放发布辅助脚本：
 十一、常见修改指引
 ------------------
 1. 改某关地形高低/间距：src/LevelDesign.cpp 的 Layouts[关号-1]。
-2. 改某关机关组合：src/LevelDesign.cpp 的 addCampaignHazards() 里对应 case。
-3. 改关卡名称/主题：src/LevelDesign.cpp 的 names[] 与 themes[]。
-4. 改 BOSS 站位或是否必须击杀：src/LevelDesign.cpp 里 bossBody / bossGate 的赋值。
-5. 改敌人出现规则：src/LevelDesign.cpp 的随机投放与 endlessAvatar()。
-6. 改敌人数值（弹速、间隔、眩晕）：src/Combat.cpp 的 updateCombat()。
-7. 改玩家血量/跳跃/速度：src/World.h 的常量与src/AdventureMechanics.cpp 的跳跃初速。
-8. 改存档位置或版本：src/PlayerSystem.cpp 的 candidateDirectories() 与 save()。
-9. 改选关卡片显示：src/Menu.cpp 的选关页绘制与 StarSystem 的 drawLevelStars()。
-10. 改 HUD 文案/布局：src/Game.cpp 的 render()。
+2. 改每关一开始的起伏（可往上爬）：早段平台高度改 EarlyLift[关号-1]，
+   相邻差不要超过 50 像素（超过二段跳就上不去）。
+3. 改某关机关组合：src/LevelDesign.cpp 的 addCampaignHazards() 里对应 case；
+   注意循环会自动跳过断桥平台，不要手动往 fragile 上放东西。
+4. 改关卡名称/主题：src/LevelDesign.cpp 的 names[] 与 themes[]。
+5. 改 BOSS 站位或是否必须击杀：src/LevelDesign.cpp 里 bossBody / bossGate 的赋值。
+6. 改敌人出现规则：src/LevelDesign.cpp 的随机投放与 endlessAvatar()。
+7. 改敌人数值（弹速、间隔、眩晕）：src/Combat.cpp 的 updateCombat()。
+8. 改玩家血量/跳跃/速度：src/World.h 的常量与 src/AdventureMechanics.cpp 的跳跃初速。
+9. 改存档位置或版本：src/PlayerSystem.cpp 的 candidateDirectories() 与 save()。
+10. 改选关卡片显示：src/Menu.cpp 的选关页绘制与 StarSystem 的 drawLevelStars()。
+11. 改 HUD 文案/布局：src/Game.cpp 的 render()。
 
 修改完成后：
   msbuild game.sln /m /p:Configuration=Release /p:Platform=x64

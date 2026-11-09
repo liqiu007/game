@@ -101,11 +101,13 @@ void runAdventureTests() {
         }
         ensure(!route.dead && route.level.feathers[0].collected, "Each actual star route must reach its feather");
         // 收集后走出高台右沿并落回存档平台，验证支线有可用出口而非死胡同。
+        // 存档平台的高度随关卡开局的起伏变化，这里按它当前的实际高度校验落点。
+        const float landing = route.level.platforms[2].y;
         for (int t = 0; t < 180 && !route.dead; ++t) {
             route.update({false, route.player.body.x < 590, false, false, true}, FixedStep);
             if (route.player.grounded && route.player.standingSky == -1) break;
         }
-        ensure(!route.dead && route.player.grounded && std::abs(route.player.body.bottom() - 430) < 0.1f,
+        ensure(!route.dead && route.player.grounded && std::abs(route.player.body.bottom() - landing) < 0.1f,
             "Feather route must rejoin the main checkpoint platform safely");
         const int score = route.scoring.total(); ensure(score >= 500, "Feather must grant 500 points");
         route.die(L"test"); route.respawn();

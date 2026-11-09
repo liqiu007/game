@@ -134,6 +134,18 @@ int Game::run(Preview preview, bool debugSix) {
         world.player.body = preview == Preview::Map ? Rect{1640, 322, 24, 28} : Rect{1218, 452, 24, 28};
         for (int i = 0; i < 12; ++i) world.update({}, FixedStep);
     }
+    // 开局预览停在第二关前段，用来核对每关一开局的高低起伏与向上攀爬的路线。
+    if (preview == Preview::Start) {
+        world.load(1);
+        const Rect& step = world.level.platforms[2];
+        world.player.body = {step.x + 60.0f, step.y - 28.0f, 24, 28};
+    }
+    // 终点预览停在第二关终点门前，用来核对门下方是实体平台而不是会坍塌的断桥。
+    if (preview == Preview::Goal) {
+        world.load(1);
+        const Rect& deck = world.level.platforms.back();
+        world.player.body = {world.level.goal.x - 120.0f, deck.y - 28.0f, 24, 28};
+    }
     // 主题预览定位到具有代表性的机关区域，真实关卡配置与正常游戏一致。
     if (preview == Preview::Bridge || preview == Preview::Enemies || preview == Preview::Lasers || preview == Preview::Boss || preview == Preview::Final || preview == Preview::Highland || preview == Preview::Endless) {
         const int chapter = preview == Preview::Bridge ? 1 : (preview == Preview::Enemies ? 2 : (preview == Preview::Lasers ? 3 : (preview == Preview::Boss ? 4 : (preview == Preview::Highland ? 10 : 14))));
@@ -392,6 +404,8 @@ int Game::run(Preview preview, bool debugSix) {
             case Preview::Boss: path = L"boss-smoke-test.png"; break;
             case Preview::Final: path = L"final-smoke-test.png"; break;
             case Preview::Highland: path = L"highland-smoke-test.png"; break;
+            case Preview::Goal: path = L"goal-smoke-test.png"; break;
+            case Preview::Start: path = L"start-smoke-test.png"; break;
             case Preview::Endless: path = L"endless-smoke-test.png"; break;
             case Preview::Adventure: path = L"adventure-smoke-test.png"; break;
             case Preview::Exhausted: path = L"exhausted-smoke-test.png"; break;

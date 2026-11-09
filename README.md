@@ -129,7 +129,9 @@ msbuild game.sln /m /p:Configuration=Release /p:Platform=x64
 
 联合版本还测试五条实际米饭路线：从出生点二段跳上高台、踩弹簧、经过活动机关、收集米饭，再安全回到主线；验证死亡保留、重开清除和奖励防刷。独立物理测试覆盖短按/长按跳跃、离边容错、跳跃缓存、单向平台穿越、平台携带/脱离、定时平台失效、弹簧、落刺预警与伤害。
 
-截图预览会自动退出，图片在当前工作目录并被 Git 忽略：`--menu-smoke-test`、`--modes-smoke-test`、`--levels-smoke-test`、`--settings-smoke-test`、`--window-smoke-test`、`--smoke-test`、`--bridge-smoke-test`、`--enemies-smoke-test`、`--lasers-smoke-test`、`--boss-smoke-test`、`--final-smoke-test`、`--highland-smoke-test`、`--endless-smoke-test`、`--death-smoke-test`、`--spike-smoke-test`、`--traps-smoke-test`、`--map-smoke-test`。
+截图预览会自动退出，图片在当前工作目录并被 Git 忽略：`--menu-smoke-test`、`--modes-smoke-test`、`--levels-smoke-test`、`--settings-smoke-test`、`--window-smoke-test`、`--smoke-test`、`--start-smoke-test`、`--bridge-smoke-test`、`--goal-smoke-test`、`--enemies-smoke-test`、`--lasers-smoke-test`、`--boss-smoke-test`、`--final-smoke-test`、`--highland-smoke-test`、`--endless-smoke-test`、`--death-smoke-test`、`--spike-smoke-test`、`--traps-smoke-test`、`--map-smoke-test`。
+
+`--start-smoke-test` 停在第二关前段看开局起伏与向上攀爬的路线，`--goal-smoke-test` 停在第二关终点门前确认门立在实体平台上。
 
 `--adventure-smoke-test` 展示第五关高路的鲸鱼娘、移动平台、米饭与真实落刺预警。
 
@@ -181,6 +183,8 @@ Windows 安装 Visual Studio C++ 桌面开发工作负载及 EasyX 后，在 Pow
 2026-11-06 每一关都必须有怪物：此前地图差异化后，第 1、2、11 关的机关组合里没有任何 `enemies.push_back`，第 9、14 关也只剩一名巡逻者，玩起来像“只生成机关、没生成怪物”。现在机关表为这些关卡补上巡逻者，并在 `Level::campaign` 末尾加了兜底：扩展段中段若仍不足两只，就在避开旗帜与终点区的平台上补到两只，再统一赋形象（Grok/GPT/Claude）。自测新增“每关至少两只怪物、形象编号有效”的断言，防止以后改机关表时再漏掉。
 
 2026-11-07 增加怪物数量：机关配置只决定“这一关的机关语言”，怪物数量改由独立的一层密度控制。`addCampaignHazards()` 在每套机关之后统一补怪（每两段一只、跳过旗帜平台、同一平台不重复、单关最多 8 只）；`Level::campaign` 末尾再从主路中段一路补到扩展段，直到每关至少 6 只巡逻者，出生点前方 420 像素内保持安全。实测十五关分别为 6/6/8/6/6/6/6/6/6/6/6/6/10/6/9 只（终焉关另有守门 Claude）。自测断言同步提高到“每关至少六只怪物”，并连跑 15 次确认路线用例不因怪多而抖动。
+
+2026-11-09 断桥规则与开局地形变化：最后一段扩展平台不再可能变成会坍塌的断桥（`buildCampaignExpansion` 的 fragile 条件加了 `i + 1 < count`，`sanitizeFragile` 也会删掉落在终点平台上的 fragile），因此终点门一定立在实体平台上；断桥桥面上不允许有任何东西——`sanitizeFragile` 会清掉悬在桥面上的巡逻者、激光、锯轮、炮台、拳头、落刺、倒挂尖刺与金币，旗帜按平台占用处理，`addCampaignHazards` 直接跳过 fragile 平台整段不摆机关。第 2 关原本挂在断桥上的两把锯轮改挂到第 5、7 块实体平台上方，避免挡住开局高路落回路线。开局地形新增 `EarlyLift[15][8]`：第二至第九块基础平台按关卡整体抬升或下沉（相邻差不超过 50 像素，钳制在 260–520），例如第二关一路上升、第三关深谷高台、第九关连续登高、第十二关先下坠再爬升，`snapBaseProps` 会把原本的尖刺、锯轮、巡逻者与激光重新吸附到新的平台顶面。新增 `--start-smoke-test`（第二关开局起伏）与 `--goal-smoke-test`（终点门下的实体平台）两个预览；自测新增“十五关开局前段高度序列两两不同”“断桥桥面上不得有终点/旗帜/怪物/机关/金币”“终点平台必须是实体”三组断言。
 
 2026-11-04 更新：继续入口仅恢复本次运行的无尽进度，切换闯关时保留无尽世界。十五关的扩展路段加入断桥、定时激光和倒挂尖刺；第六关新增水平定时炮台（发射前亮灯），第七关新增踩踏触发的隐藏弹簧拳头（弹飞后可空中补跳）。新机关暂停冻结，重生复位。
 

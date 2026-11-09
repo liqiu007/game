@@ -412,6 +412,48 @@ void runExtendedTests() {
                 for (std::size_t i = 0; i < terrains.size(); ++i)
                     for (std::size_t j = i + 1; j < terrains.size(); ++j)
                         require(terrains[i] != terrains[j], "Campaign terrains must differ between chapters");
+                // 开局前段（第 2~9 块平台）也必须有各自的起伏，不能十五关共用同一条水平走廊。
+                std::vector<std::vector<float>> openings;
+                for (int i = 0; i < 15; ++i) {
+                    World opened; opened.load(i);
+                    std::vector<float> shape;
+                    for (std::size_t p = 2; p < 10 && p < opened.level.platforms.size(); ++p)
+                        shape.push_back(opened.level.platforms[p].y);
+                    openings.push_back(shape);
+                }
+                for (std::size_t i = 0; i < openings.size(); ++i)
+                    for (std::size_t j = i + 1; j < openings.size(); ++j)
+                        require(openings[i] != openings[j], "Campaign openings must differ between chapters");
+                // 断桥规则：门、旗帜、怪物、机关与金币都不能出现在会坍塌的平台上，
+                // 且最后一块承载终点门的平台必须是实体，不能是断桥。
+                for (int i = 0; i < 15; ++i) {
+                    World guarded; guarded.load(i);
+                    const Level& level = guarded.level;
+                    for (const auto& piece : level.fragile) {
+                        if (piece.index + 1 >= level.platforms.size())
+                            throw std::runtime_error(("Chapter " + std::to_string(i + 1) + " puts the goal on a fragile bridge").c_str());
+                        const Rect& deck = level.platforms[piece.index];
+                        const auto overBridge = [&deck](const Rect& body) {
+                            return body.right() > deck.x && body.x < deck.right() &&
+                                body.y < deck.y + 4.0f && body.bottom() > deck.y - 300.0f;
+                        };
+                        require(!overBridge(level.goal), "Fragile bridge must not carry the goal");
+                        for (const auto& flag : level.checkpoints)
+                            require(!overBridge(flag), "Fragile bridge must not carry a checkpoint");
+                        for (const auto& patrol : level.enemies)
+                            require(!overBridge(patrol.body), "Fragile bridge must not carry an enemy");
+                        for (const auto& ground : level.spikes)
+                            require(!overBridge(ground), "Fragile bridge must not carry a spike");
+                        for (const auto& beam : level.lasers)
+                            require(!overBridge(beam.body), "Fragile bridge must not carry a laser");
+                        for (const auto& blade : level.saws)
+                            require(!overBridge(blade.body), "Fragile bridge must not carry a saw");
+                        for (const auto& turret : level.cannons)
+                            require(!overBridge(turret.body), "Fragile bridge must not carry a cannon");
+                        for (const auto& pickup : level.coins)
+                            require(!overBridge(pickup.body), "Fragile bridge must not carry a coin");
+                    }
+                }
             }
         }
         World route; route.load(chapter);
