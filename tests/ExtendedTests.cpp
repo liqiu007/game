@@ -100,6 +100,15 @@ void runExtendedTests() {
         }
     }
     require(gptSeen, "GPT must appear from chapter three");
+    // 最终关始终同时出现 Claude 和 GPT，任何随机结果都不会生成 Grok。
+    for (int attempt = 0; attempt < 12; ++attempt) {
+        World finale; finale.load(14); bool claude = false, gpt = false;
+        for (const auto& enemy : finale.level.enemies) {
+            require(enemy.avatar != 2, "Final chapter must not spawn Grok");
+            claude = claude || enemy.avatar == 0; gpt = gpt || enemy.avatar == 1;
+        }
+        require(claude && gpt, "Final chapter must contain Claude and GPT");
+    }
     // Claude 在旧射程以外且存在高度差时仍能朝玩家甩出放大图片。
     World ranged; ranged.level.platforms.clear(); ranged.level.spikes.clear(); ranged.level.overheadTraps.clear();
     ranged.player.body = {800,200,24,28};
@@ -460,6 +469,8 @@ void runExtendedTests() {
         // 路线用例只验证地形可通过性：水平炮台、错峰激光与 BOSS 弹幕的伤害行为分别由
         // “Cannon must fire horizontally”“错峰激光”和 BOSS 相关用例覆盖；这里清掉它们，
         // 避免脚本靠固定节奏硬穿时序机关时被误杀（机关本身仍保留在真实关卡里）。
+        // 怪物密度和攻击单独验证，地形路线测试清除随机巡逻及其弹幕。
+        route.level.enemies.clear();
         route.level.cannons.clear();
         route.level.lasers.clear();
         baitNearby(route);

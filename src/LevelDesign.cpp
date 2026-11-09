@@ -297,7 +297,7 @@ void addCampaignHazards(Level& level, int stage) {
         // 统一增加怪物密度：机关配置只决定“这一关的机关语言”，怪物数量单独加一层，
         // 让十五关都能稳定出现 5 只以上的巡逻者。每两段补一名，且避开已有怪物的平台，
         // 同时保留上限，避免终焉关与 BOSS 战被怪堆淹没。
-        const bool dense = level.enemies.size() < 8 && i % 2 == 0 && !reserved;
+        const bool dense = level.enemies.size() < 12 && i % 2 == 0 && !reserved;
         if (dense) {
             const bool occupied = std::any_of(level.enemies.begin(), level.enemies.end(), [&](const Enemy& enemy) {
                 return enemy.body.x < x + w && enemy.body.x + enemy.body.w > x;
@@ -391,8 +391,8 @@ Level Level::campaign(int index) {
     // 存档点确定后再摆放扩展段机关：机关会跳过有旗帜的平台，玩家重生时不会直接落在危险物里。
     addCampaignHazards(result, stage);
     // 数量兜底：机关配置与旗帜占位都可能让某关怪物偏少，这里从主路中段一路补到扩展段，
-    // 直到每关至少六只巡逻者，保证十五关的怪物密度大致一致；出生点附近留出安全区。
-    for (std::size_t i = 3; i + 1 < result.platforms.size() && result.enemies.size() < 6; ++i) {
+    // 优先补至每关九只巡逻者，保证十五关的怪物密度大致一致；出生点附近留出安全区。
+    for (std::size_t i = 3; i + 1 < result.platforms.size() && result.enemies.size() < 9; ++i) {
         const Rect& platform = result.platforms[i];
         if (isFragileIndex(result, i)) continue;
         if (platform.x < result.spawnX + 420.0f) continue;
@@ -405,11 +405,19 @@ Level Level::campaign(int index) {
         result.enemies.push_back({{platform.x + platform.w * 0.5f, platform.y - 28.0f, 26, 28},
             platform.x + 20.0f, platform.right() - 40.0f});
     }
+    bool finalGptAssigned = false;
     // 敌人形象按关卡投放：第一、二关只有近战的 Grok，第三关起 GPT 登场，第七关起 Claude 也可能出现。
     for (auto& enemy : result.enemies) {
         if (stage < 2) enemy.avatar = 2;
         else if (stage < 6) enemy.avatar = 1 + avatar() % 2;
-        else enemy.avatar = avatar();
+        else {
+            // 第七关起逐步提高 Claude 的出现概率，最后一关只保留 Claude 与 GPT。
+            static std::mt19937 typeRng(std::random_device{}());
+            const int chance = 40 + (stage - 6) * 5;
+            const int roll = std::uniform_int_distribution<int>(0, 99)(typeRng);
+            enemy.avatar = roll < chance ? 0 : (stage == 14 ? 1 : 1 + avatar() % 2);
+            if (stage == 14 && !finalGptAssigned) { enemy.avatar = 1; finalGptAssigned = true; }
+        }
     }
     // 断桥终检：门、旗帜、怪物与机关都不能落在会坍塌的平台上；
     // 这一步也保证最后一个平台（承载终点门）永远保持实体。
@@ -507,3 +515,4 @@ bool World::platformSolid(std::size_t index) const {
     return true;
 }
 }
+
